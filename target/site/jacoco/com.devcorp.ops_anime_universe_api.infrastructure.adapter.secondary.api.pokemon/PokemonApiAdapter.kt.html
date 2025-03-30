@@ -39,112 +39,124 @@ import org.springframework.web.reactive.function.client.awaitBody
     @Retry(name = &quot;pokemonApi&quot;)
     @Cacheable(value = [&quot;pokemon&quot;], key = &quot;'list-' + #offset + '-' + #limit&quot;)
 <span class="nc" id="L41">    override suspend fun getPokemons(offset: Int, limit: Int): PokemonPageResponse {</span>
-<span class="fc" id="L42">        logger.info(&quot;Buscando pokemons: offset $offset, limite $limit&quot;)</span>
-<span class="fc" id="L43">        logger.debug(&quot;URL Base: {}, Endpoint: /pokemon&quot;, baseUrl)</span>
+        // Para garantir que estamos buscando os primeiros Pokémon da primeira página
+        // O offset da PokeAPI começa com 0 para o primeiro Pokémon (Bulbasaur)
+<span class="pc bpc" id="L44" title="1 of 2 branches missed.">        val adjustedOffset = if (offset == 0) 0 else offset * limit</span>
+<span class="fc" id="L45">        val validLimit = limit.coerceAtLeast(1)</span>
 
-<span class="fc" id="L45">        return try {</span>
-<span class="fc" id="L46">            pokemonWebClient</span>
-<span class="fc" id="L47">                    .get()</span>
-<span class="fc" id="L48">                    .uri { uriBuilder -&gt;</span>
-<span class="fc" id="L49">                        uriBuilder</span>
-<span class="fc" id="L50">                                .path(&quot;/pokemon&quot;)</span>
-<span class="fc" id="L51">                                .queryParam(&quot;offset&quot;, offset)</span>
-<span class="fc" id="L52">                                .queryParam(&quot;limit&quot;, limit)</span>
-<span class="fc" id="L53">                                .build()</span>
+<span class="fc" id="L47">        logger.info(</span>
+<span class="fc" id="L48">                &quot;Buscando pokemons: offset ajustado $adjustedOffset (página original $offset), limite $validLimit&quot;</span>
+        )
+<span class="fc" id="L50">        logger.debug(</span>
+<span class="fc" id="L51">                &quot;URL Base: {}, Endpoint: /pokemon?offset={}&amp;limit={}&quot;,</span>
+<span class="fc" id="L52">                baseUrl,</span>
+<span class="fc" id="L53">                adjustedOffset,</span>
+<span class="fc" id="L54">                validLimit</span>
+        )
+
+<span class="fc" id="L57">        return try {</span>
+<span class="fc" id="L58">            pokemonWebClient</span>
+<span class="fc" id="L59">                    .get()</span>
+<span class="fc" id="L60">                    .uri { uriBuilder -&gt;</span>
+<span class="fc" id="L61">                        uriBuilder</span>
+<span class="fc" id="L62">                                .path(&quot;/pokemon&quot;)</span>
+<span class="fc" id="L63">                                .queryParam(&quot;offset&quot;, adjustedOffset)</span>
+<span class="fc" id="L64">                                .queryParam(&quot;limit&quot;, validLimit)</span>
+<span class="fc" id="L65">                                .build()</span>
                     }
-<span class="fc" id="L55">                    .retrieve()</span>
-<span class="fc" id="L56">                    .awaitBody&lt;PokemonPageResponse&gt;()</span>
-<span class="fc" id="L57">        } catch (e: WebClientResponseException) {</span>
-<span class="fc" id="L58">            logger.error(&quot;Erro HTTP ${e.statusCode} ao buscar lista de pokemons: ${e.message}&quot;, e)</span>
-<span class="fc" id="L59">            createEmptyPageResponse()</span>
-<span class="fc" id="L60">        } catch (e: Exception) {</span>
-<span class="fc" id="L61">            logger.error(&quot;Erro ao buscar lista de pokemons: ${e.message}&quot;, e)</span>
-<span class="fc" id="L62">            createEmptyPageResponse()</span>
+<span class="fc" id="L67">                    .retrieve()</span>
+<span class="fc" id="L68">                    .awaitBody&lt;PokemonPageResponse&gt;()</span>
+<span class="fc" id="L69">        } catch (e: WebClientResponseException) {</span>
+<span class="fc" id="L70">            logger.error(&quot;Erro HTTP ${e.statusCode} ao buscar lista de pokemons: ${e.message}&quot;, e)</span>
+<span class="fc" id="L71">            createEmptyPageResponse()</span>
+<span class="fc" id="L72">        } catch (e: Exception) {</span>
+<span class="fc" id="L73">            logger.error(&quot;Erro ao buscar lista de pokemons: ${e.message}&quot;, e)</span>
+<span class="fc" id="L74">            createEmptyPageResponse()</span>
         }
     }
 
     @CircuitBreaker(name = &quot;pokemonApi&quot;, fallbackMethod = &quot;getPokemonByNameFallback&quot;)
     @Retry(name = &quot;pokemonApi&quot;)
     @Cacheable(value = [&quot;pokemon&quot;], key = &quot;'detail-' + #name&quot;)
-<span class="nc" id="L69">    override suspend fun getPokemonByName(name: String): PokemonDetailResponse {</span>
-<span class="fc" id="L70">        logger.info(&quot;Buscando detalhes do pokemon: $name&quot;)</span>
-<span class="fc" id="L71">        logger.debug(&quot;URL Base: {}, Endpoint: /pokemon/{}&quot;, baseUrl, name)</span>
+<span class="nc" id="L81">    override suspend fun getPokemonByName(name: String): PokemonDetailResponse {</span>
+<span class="fc" id="L82">        logger.info(&quot;Buscando detalhes do pokemon: $name&quot;)</span>
+<span class="fc" id="L83">        logger.debug(&quot;URL Base: {}, Endpoint: /pokemon/{}&quot;, baseUrl, name)</span>
 
-<span class="fc" id="L73">        return try {</span>
-<span class="fc" id="L74">            pokemonWebClient</span>
-<span class="fc" id="L75">                    .get()</span>
-<span class="fc" id="L76">                    .uri(&quot;/pokemon/{name}&quot;, name)</span>
-<span class="fc" id="L77">                    .retrieve()</span>
-<span class="fc" id="L78">                    .awaitBody&lt;PokemonDetailResponse&gt;()</span>
-<span class="fc" id="L79">        } catch (e: WebClientResponseException) {</span>
-<span class="fc" id="L80">            logger.error(</span>
-<span class="fc" id="L81">                    &quot;Erro HTTP ${e.statusCode} ao buscar detalhes do pokemon $name: ${e.message}&quot;,</span>
-<span class="fc" id="L82">                    e</span>
+<span class="fc" id="L85">        return try {</span>
+<span class="fc" id="L86">            pokemonWebClient</span>
+<span class="fc" id="L87">                    .get()</span>
+<span class="fc" id="L88">                    .uri(&quot;/pokemon/{name}&quot;, name)</span>
+<span class="fc" id="L89">                    .retrieve()</span>
+<span class="fc" id="L90">                    .awaitBody&lt;PokemonDetailResponse&gt;()</span>
+<span class="fc" id="L91">        } catch (e: WebClientResponseException) {</span>
+<span class="fc" id="L92">            logger.error(</span>
+<span class="fc" id="L93">                    &quot;Erro HTTP ${e.statusCode} ao buscar detalhes do pokemon $name: ${e.message}&quot;,</span>
+<span class="fc" id="L94">                    e</span>
             )
-<span class="fc" id="L84">            createEmptyDetailResponse(name)</span>
-<span class="fc" id="L85">        } catch (e: Exception) {</span>
-<span class="fc" id="L86">            logger.error(&quot;Erro ao buscar detalhes do pokemon $name: ${e.message}&quot;, e)</span>
-<span class="fc" id="L87">            createEmptyDetailResponse(name)</span>
+<span class="fc" id="L96">            createEmptyDetailResponse(name)</span>
+<span class="fc" id="L97">        } catch (e: Exception) {</span>
+<span class="fc" id="L98">            logger.error(&quot;Erro ao buscar detalhes do pokemon $name: ${e.message}&quot;, e)</span>
+<span class="fc" id="L99">            createEmptyDetailResponse(name)</span>
         }
     }
 
     @CircuitBreaker(name = &quot;pokemonApi&quot;, fallbackMethod = &quot;isAvailableFallback&quot;)
     @Retry(name = &quot;pokemonApi&quot;)
-<span class="fc" id="L93">    override suspend fun isAvailable(): Boolean {</span>
-<span class="fc" id="L94">        logger.info(&quot;Verificando disponibilidade da PokeAPI&quot;)</span>
-<span class="fc" id="L95">        logger.debug(&quot;URL Base: {}, Endpoint: /pokemon?limit=1&quot;, baseUrl)</span>
+<span class="fc" id="L105">    override suspend fun isAvailable(): Boolean {</span>
+<span class="fc" id="L106">        logger.info(&quot;Verificando disponibilidade da PokeAPI&quot;)</span>
+<span class="fc" id="L107">        logger.debug(&quot;URL Base: {}, Endpoint: /pokemon?limit=1&quot;, baseUrl)</span>
 
-<span class="fc" id="L97">        return try {</span>
-<span class="fc" id="L98">            val response =</span>
-<span class="fc" id="L99">                    pokemonWebClient.get().uri(&quot;/pokemon?limit=1&quot;).retrieve().awaitBodilessEntity()</span>
-<span class="fc" id="L100">            logger.info(&quot;Status code da PokeAPI: {}&quot;, response.statusCode)</span>
-<span class="pc bpc" id="L101" title="1 of 2 branches missed.">            response.statusCode == HttpStatus.OK</span>
-<span class="fc" id="L102">        } catch (e: Exception) {</span>
-<span class="fc" id="L103">            logger.error(&quot;Erro ao verificar disponibilidade da PokeAPI: {}&quot;, e.message)</span>
-<span class="fc bfc" id="L104" title="All 2 branches covered.">            false</span>
+<span class="fc" id="L109">        return try {</span>
+<span class="fc" id="L110">            val response =</span>
+<span class="fc" id="L111">                    pokemonWebClient.get().uri(&quot;/pokemon?limit=1&quot;).retrieve().awaitBodilessEntity()</span>
+<span class="fc" id="L112">            logger.info(&quot;Status code da PokeAPI: {}&quot;, response.statusCode)</span>
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">            response.statusCode == HttpStatus.OK</span>
+<span class="fc" id="L114">        } catch (e: Exception) {</span>
+<span class="fc" id="L115">            logger.error(&quot;Erro ao verificar disponibilidade da PokeAPI: {}&quot;, e.message)</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">            false</span>
         }
     }
 
     // Métodos de fallback
     suspend fun getPokemonsFallback(offset: Int, limit: Int, e: Exception): PokemonPageResponse {
-<span class="fc" id="L110">        logger.warn(</span>
-<span class="fc" id="L111">                &quot;Fallback acionado para getPokemons com offset $offset e limite $limit: ${e.message}&quot;,</span>
-<span class="fc" id="L112">                e</span>
+<span class="fc" id="L122">        logger.warn(</span>
+<span class="fc" id="L123">                &quot;Fallback acionado para getPokemons com offset $offset e limite $limit: ${e.message}&quot;,</span>
+<span class="fc" id="L124">                e</span>
         )
-<span class="fc" id="L114">        return createEmptyPageResponse()</span>
+<span class="fc" id="L126">        return createEmptyPageResponse()</span>
     }
 
     suspend fun getPokemonByNameFallback(name: String, e: Exception): PokemonDetailResponse {
-<span class="fc" id="L118">        logger.warn(&quot;Fallback acionado para getPokemonByName com nome $name: ${e.message}&quot;, e)</span>
-<span class="fc" id="L119">        return createEmptyDetailResponse(name)</span>
+<span class="fc" id="L130">        logger.warn(&quot;Fallback acionado para getPokemonByName com nome $name: ${e.message}&quot;, e)</span>
+<span class="fc" id="L131">        return createEmptyDetailResponse(name)</span>
     }
 
     suspend fun isAvailableFallback(e: Exception): Boolean {
-<span class="fc" id="L123">        logger.warn(&quot;Fallback acionado para isAvailable: ${e.message}&quot;, e)</span>
-<span class="fc" id="L124">        return false</span>
+<span class="fc" id="L135">        logger.warn(&quot;Fallback acionado para isAvailable: ${e.message}&quot;, e)</span>
+<span class="fc" id="L136">        return false</span>
     }
 
     // Métodos auxiliares para criar respostas vazias
     private fun createEmptyPageResponse(): PokemonPageResponse {
-<span class="fc" id="L129">        return PokemonPageResponse(count = 0, next = null, previous = null, results = emptyList())</span>
+<span class="fc" id="L141">        return PokemonPageResponse(count = 0, next = null, previous = null, results = emptyList())</span>
     }
 
     private fun createEmptyDetailResponse(name: String): PokemonDetailResponse {
-<span class="fc" id="L133">        return PokemonDetailResponse(</span>
-<span class="fc" id="L134">                id = 0,</span>
-<span class="fc" id="L135">                name = name,</span>
-<span class="fc" id="L136">                height = 0,</span>
-<span class="fc" id="L137">                weight = 0,</span>
+<span class="fc" id="L145">        return PokemonDetailResponse(</span>
+<span class="fc" id="L146">                id = 0,</span>
+<span class="fc" id="L147">                name = name,</span>
+<span class="fc" id="L148">                height = 0,</span>
+<span class="fc" id="L149">                weight = 0,</span>
                 sprites =
-<span class="fc" id="L139">                        PokemonSprites(</span>
-<span class="fc" id="L140">                                front_default = null,</span>
-<span class="fc" id="L141">                                front_shiny = null,</span>
-<span class="fc" id="L142">                                back_default = null,</span>
-<span class="fc" id="L143">                                back_shiny = null</span>
+<span class="fc" id="L151">                        PokemonSprites(</span>
+<span class="fc" id="L152">                                front_default = null,</span>
+<span class="fc" id="L153">                                front_shiny = null,</span>
+<span class="fc" id="L154">                                back_default = null,</span>
+<span class="fc" id="L155">                                back_shiny = null</span>
                         ),
-<span class="fc" id="L145">                types = emptyList(),</span>
-<span class="fc" id="L146">                species = NamedApiResource(name = &quot;&quot;, url = &quot;&quot;),</span>
-<span class="fc" id="L147">                abilities = emptyList()</span>
+<span class="fc" id="L157">                types = emptyList(),</span>
+<span class="fc" id="L158">                species = NamedApiResource(name = &quot;&quot;, url = &quot;&quot;),</span>
+<span class="fc" id="L159">                abilities = emptyList()</span>
         )
     }
 }

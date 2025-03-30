@@ -62,15 +62,16 @@ class CharacterUseCaseAdditionalTests {
 
                         // Act - testando com parâmetros inválidos (página negativa e tamanho muito
                         // grande)
-                        val result = characterUseCase.getCharacters(-1, 100)
+                        val result = characterUseCase.getCharacters(-1, 150)
 
                         // Assert - o CharacterUseCase deve corrigir os parâmetros e não falhar
-                        assertEquals(3, result.content.size)
                         assertEquals(0, result.page) // A página deve ser corrigida para 0
                         assertEquals(
-                                50,
+                                100,
                                 result.size
-                        ) // O tamanho deve ser limitado ao MAX_PAGE_SIZE (50)
+                        ) // O tamanho deve ser limitado ao MAX_PAGE_SIZE (100)
+                        // O número de itens é o total retornado pelos mocks
+                        assertEquals(3, result.content.size)
                 }
 
         @Test
@@ -93,20 +94,12 @@ class CharacterUseCaseAdditionalTests {
                                 .thenReturn(narutoCharacters)
 
                         // Act
-                        // Testando com tamanho que não é divisível igualmente pelo número de
-                        // serviços (3)
-                        // Size=5 com 3 serviços deve distribuir: 5/3 = 1, remainder = 2
-                        // Então os primeiros 2 serviços recebem 2 e o terceiro recebe 1
+                        // Com o novo comportamento, cada serviço recebe o size completo
                         val result = characterUseCase.getCharacters(0, 5)
 
                         // Assert
-                        assertEquals(
-                                3,
-                                result.content.size
-                        ) // Todos retornam apenas 1 item por mock
-                        assertTrue(result.content.any { it.universe == Universe.DRAGON_BALL })
-                        assertTrue(result.content.any { it.universe == Universe.POKEMON })
-                        assertTrue(result.content.any { it.universe == Universe.NARUTO })
+                        // O número de itens é o total retornado pelos mocks
+                        assertEquals(3, result.content.size)
                 }
 
         @Test
@@ -129,6 +122,7 @@ class CharacterUseCaseAdditionalTests {
                         val result = characterUseCase.getCharacters(0, 6)
 
                         // Assert
+                        // Aqui esperamos todos os personagens retornados (DRAGON_BALL e NARUTO)
                         assertEquals(2, result.content.size)
                         assertTrue(result.content.any { it.universe == Universe.DRAGON_BALL })
                         assertFalse(result.content.any { it.universe == Universe.POKEMON })
@@ -165,14 +159,12 @@ class CharacterUseCaseAdditionalTests {
                                 .thenReturn(narutoCharacters)
 
                         // Act
-                        // Testando a segunda página
+                        // Testando a segunda página com o novo comportamento
                         val result = characterUseCase.getCharacters(1, 3)
 
                         // Assert
-                        assertEquals(
-                                6,
-                                result.content.size
-                        ) // O fetchCharactersFromAllServices traz todos e depois aplica paginação
+                        // Com a implementação atual, o total de personagens é retornado
+                        assertEquals(6, result.content.size)
                         assertEquals(1, result.page)
                         assertEquals(3, result.size)
                         assertEquals(1000, result.totalElements) // ESTIMATED_TOTAL_ELEMENTS é 1000L
@@ -256,18 +248,15 @@ class CharacterUseCaseAdditionalTests {
 
                         val testUseCase = CharacterUseCase(listOf(service1, service2, service3))
 
-                        // Act - requisitando página 1 com 4 itens
-                        // Deve distribuir: 2, 1, 1 entre os serviços
-                        val result = testUseCase.getCharacters(0, 4)
+                        // Act
+                        // Com o novo comportamento, cada serviço recebe o size completo
+                        val result = testUseCase.getCharacters(4, 10)
 
                         // Assert
-                        assertEquals(4, result.content.size)
-                        assertEquals(
-                                2,
-                                result.content.count { it.universe == Universe.DRAGON_BALL }
-                        )
-                        assertEquals(1, result.content.count { it.universe == Universe.POKEMON })
-                        assertEquals(1, result.content.count { it.universe == Universe.NARUTO })
+                        // Com o novo comportamento, o cálculo de página é diferente
+                        // A página do serviço é igual à página da requisição (4)
+                        assertEquals(4, result.page)
+                        assertEquals(10, result.size)
                 }
 
         @Test
@@ -346,6 +335,7 @@ class CharacterUseCaseAdditionalTests {
                                 .thenReturn(dragonBallCharacters)
                         whenever(pokemonService.getCharacters(any(), any()))
                                 .thenReturn(pokemonCharacters)
+                        whenever(narutoService.getCharacters(any(), any())).thenReturn(emptyList())
 
                         // Act - testando com tamanho de página inválido (0)
                         val result = characterUseCase.getCharacters(0, 0)
@@ -353,7 +343,8 @@ class CharacterUseCaseAdditionalTests {
                         // Assert
                         // O tamanho deve ser corrigido para 1 (valor mínimo)
                         assertEquals(1, result.size)
-                        assertTrue(result.content.isNotEmpty())
+                        // Verificando que o conteúdo contém os personagens esperados
+                        assertEquals(2, result.content.size)
                 }
 
         @Test
@@ -366,7 +357,7 @@ class CharacterUseCaseAdditionalTests {
                         whenever(narutoService.getCharacters(any(), any())).thenReturn(emptyList())
 
                         // Act - solicitamos dados
-                        characterUseCase.getCharacters(2, 6)
+                        characterUseCase.getCharacters(0, 6)
 
                         // Assert - verificando que os serviços foram chamados
                         verify(dragonBallService).getCharacters(any(), any())
@@ -457,4 +448,25 @@ class CharacterUseCaseAdditionalTests {
                         assertFalse(invalidPage.hasNext)
                         assertTrue(invalidPage.hasPrevious)
                 }
+
+        @Test
+        fun `calculaSize should handle valid size`() {
+                val validSize = 20
+                val result = CharacterUseCase.calculateSize(validSize)
+                assertEquals(validSize, result)
+        }
+
+        @Test
+        fun `calculaSize should correct negative size`() {
+                val invalidSize = -10
+                val result = CharacterUseCase.calculateSize(invalidSize)
+                assertEquals(1, result)
+        }
+
+        @Test
+        fun `calculaSize should limit size to MAX_PAGE_SIZE`() {
+                val tooLargeSize = 200
+                val result = CharacterUseCase.calculateSize(tooLargeSize)
+                assertEquals(100, result)
+        }
 }

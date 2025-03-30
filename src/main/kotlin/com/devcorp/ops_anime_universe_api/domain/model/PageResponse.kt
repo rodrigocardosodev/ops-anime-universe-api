@@ -13,7 +13,7 @@ data class PageResponse<T>(
       val totalPages =
               when {
                 totalElements == 0L -> 0
-                size == 0 -> 1
+                size <= 0 -> 1
                 totalElements % size == 0L -> (totalElements / size).toInt()
                 else -> (totalElements / size + 1).toInt()
               }

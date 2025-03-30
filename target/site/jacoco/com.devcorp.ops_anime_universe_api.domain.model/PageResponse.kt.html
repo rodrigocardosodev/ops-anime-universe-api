@@ -13,7 +13,7 @@
 <span class="fc" id="L13">      val totalPages =</span>
 <span class="fc" id="L14">              when {</span>
 <span class="fc bfc" id="L15" title="All 2 branches covered.">                totalElements == 0L -&gt; 0</span>
-<span class="fc bfc" id="L16" title="All 2 branches covered.">                size == 0 -&gt; 1</span>
+<span class="fc bfc" id="L16" title="All 2 branches covered.">                size &lt;= 0 -&gt; 1</span>
 <span class="fc bfc" id="L17" title="All 2 branches covered.">                totalElements % size == 0L -&gt; (totalElements / size).toInt()</span>
 <span class="fc" id="L18">                else -&gt; (totalElements / size + 1).toInt()</span>
               }

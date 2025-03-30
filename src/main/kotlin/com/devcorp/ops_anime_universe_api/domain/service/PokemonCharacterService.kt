@@ -26,15 +26,15 @@ class PokemonCharacterService(private val pokemonApiClient: PokemonApiClient) : 
   override fun getUniverse(): Universe = Universe.POKEMON
 
   override suspend fun getCharacters(page: Int, size: Int): List<Character> {
-    // Verifica parâmetros de paginação
+    // Verifica parâmetros de paginação - sempre positivos
     val validPage = page.coerceAtLeast(0)
     val validSize = size.coerceAtLeast(1)
-    val offset = validPage * validSize
 
-    logger.info("Buscando pokémons na página $validPage (offset $offset) com tamanho $validSize")
+    // Passamos diretamente a página e o tamanho, o adapter calculará o offset correto
+    logger.info("Buscando pokémons na página $validPage com tamanho $validSize")
 
     return try {
-      val pokemonPage = pokemonApiClient.getPokemons(offset, validSize)
+      val pokemonPage = pokemonApiClient.getPokemons(validPage, validSize)
 
       if (pokemonPage.results.isEmpty()) {
         logger.info("Nenhum pokémon encontrado na página $validPage")

@@ -1,5 +1,7 @@
 package com.devcorp.ops_anime_universe_api
 
+import java.lang.reflect.Modifier
+import kotlin.reflect.jvm.javaMethod
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import org.springframework.boot.test.context.SpringBootTest
@@ -50,5 +52,28 @@ class ApplicationTests {
             annotations.any { it.annotationClass.simpleName == "SpringBootApplication" }
 
     assert(hasSpringBootAnnotation)
+  }
+
+  @Test
+  fun `método main existe no arquivo Application`() {
+    // Em Kotlin, o método main é uma função de nível superior,
+    // não um método dentro da classe Application
+    val mainMethod = ::main.javaMethod
+
+    // Verificar se o método é público e estático (como exigido para um método main)
+    val isPublicStatic =
+            mainMethod != null &&
+                    Modifier.isPublic(mainMethod.modifiers) &&
+                    Modifier.isStatic(mainMethod.modifiers)
+
+    // Verificar se tem os parâmetros corretos
+    val hasCorrectParameter =
+            mainMethod != null &&
+                    mainMethod.parameterCount == 1 &&
+                    mainMethod.parameters[0].type == Array<String>::class.java
+
+    assert(isPublicStatic && hasCorrectParameter) {
+      "O método main não foi encontrado corretamente no arquivo Application.kt"
+    }
   }
 }

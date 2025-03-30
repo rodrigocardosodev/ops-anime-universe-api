@@ -26,15 +26,15 @@ import org.springframework.stereotype.Service
 <span class="fc" id="L26">  override fun getUniverse(): Universe = Universe.POKEMON</span>
 
 <span class="fc" id="L28">  override suspend fun getCharacters(page: Int, size: Int): List&lt;Character&gt; {</span>
-    // Verifica parâmetros de paginação
+    // Verifica parâmetros de paginação - sempre positivos
 <span class="fc" id="L30">    val validPage = page.coerceAtLeast(0)</span>
 <span class="fc" id="L31">    val validSize = size.coerceAtLeast(1)</span>
-<span class="fc" id="L32">    val offset = validPage * validSize</span>
 
-<span class="fc" id="L34">    logger.info(&quot;Buscando pokémons na página $validPage (offset $offset) com tamanho $validSize&quot;)</span>
+    // Passamos diretamente a página e o tamanho, o adapter calculará o offset correto
+<span class="fc" id="L34">    logger.info(&quot;Buscando pokémons na página $validPage com tamanho $validSize&quot;)</span>
 
 <span class="fc" id="L36">    return try {</span>
-<span class="fc" id="L37">      val pokemonPage = pokemonApiClient.getPokemons(offset, validSize)</span>
+<span class="fc" id="L37">      val pokemonPage = pokemonApiClient.getPokemons(validPage, validSize)</span>
 
 <span class="fc bfc" id="L39" title="All 2 branches covered.">      if (pokemonPage.results.isEmpty()) {</span>
 <span class="fc" id="L40">        logger.info(&quot;Nenhum pokémon encontrado na página $validPage&quot;)</span>

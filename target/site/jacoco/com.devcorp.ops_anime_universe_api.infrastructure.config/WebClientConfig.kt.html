@@ -101,14 +101,14 @@ import reactor.netty.resources.ConnectionProvider
         /** Cria um filtro para logar requisições (útil para debug) */
         private fun logRequest(): ExchangeFilterFunction {
 <span class="fc" id="L103">                return ExchangeFilterFunction.ofRequestProcessor { clientRequest -&gt;</span>
-<span class="nc bnc" id="L104" title="All 2 branches missed.">                        if (logger.isDebugEnabled) {</span>
-<span class="nc" id="L105">                                logger.debug(</span>
-<span class="nc" id="L106">                                        &quot;Request: {} {}&quot;,</span>
-<span class="nc" id="L107">                                        clientRequest.method(),</span>
-<span class="nc" id="L108">                                        clientRequest.url()</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">                        if (logger.isDebugEnabled) {</span>
+<span class="fc" id="L105">                                logger.debug(</span>
+<span class="fc" id="L106">                                        &quot;Request: {} {}&quot;,</span>
+<span class="fc" id="L107">                                        clientRequest.method(),</span>
+<span class="fc" id="L108">                                        clientRequest.url()</span>
                                 )
                         }
-<span class="nc" id="L111">                        Mono.just(clientRequest)</span>
+<span class="fc" id="L111">                        Mono.just(clientRequest)</span>
                 }
         }
 }

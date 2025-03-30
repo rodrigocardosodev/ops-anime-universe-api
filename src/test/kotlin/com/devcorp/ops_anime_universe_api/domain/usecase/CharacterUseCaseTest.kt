@@ -13,12 +13,30 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.mockito.junit.jupiter.MockitoExtension
+import org.mockito.junit.jupiter.MockitoSettings
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.spy
 import org.mockito.kotlin.whenever
+import org.mockito.quality.Strictness
 
+/** Classe para testes que expõe métodos privados de CharacterUseCase */
+class TestableCharacterUseCase(
+        private val characterServices: List<CharacterService>,
+        private val testEnvironmentValue: Boolean = true
+) : CharacterUseCase(characterServices) {
+        // Torna o método isTestEnvironment público e substitui seu comportamento
+        public override fun isTestEnvironment(): Boolean {
+                return testEnvironmentValue
+        }
+}
+
+/** Testes para a classe CharacterUseCase focados nas principais funcionalidades */
+@ExtendWith(MockitoExtension::class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class CharacterUseCaseTest {
 
         private lateinit var dragonBallService: CharacterService
@@ -486,5 +504,44 @@ class CharacterUseCaseTest {
 
                         // Assert - deve ter o status DOWN para o serviço que teve timeout
                         assertEquals(Status.DOWN, result[Universe.POKEMON.name])
+                }
+
+        @Test
+        fun `fetchCharactersFromAllServices should handle no services available`() =
+                testScope.runTest {
+                        // Arrange - caso com lista vazia de serviços com ambiente de produção
+                        val testUseCase =
+                                TestableCharacterUseCase(emptyList(), testEnvironmentValue = false)
+
+                        // Act
+                        val result = testUseCase.getCharacters(0, 5)
+
+                        // Assert
+                        // Mesmo sem serviços, deve retornar dados da implementação padrão
+                        assertTrue(result.content.isNotEmpty())
+                }
+
+        @Test
+        fun `fetchCharactersFromAllServices should use createExpandedCharacterList for non-test environment with page greater than 0`() =
+                testScope.runTest {
+                        // Arrange - configure como ambiente de produção
+                        val testUseCase =
+                                TestableCharacterUseCase(
+                                        listOf(dragonBallService, pokemonService),
+                                        testEnvironmentValue = false
+                                )
+
+                        // Act - chamamos com página 1 (para entrar no caminho else do
+                        // fetchCharactersFromAllServices)
+                        val page = 1
+                        val size = 4
+                        val result = testUseCase.getCharacters(page, size)
+
+                        // Assert
+                        // Na página 1 deve ter resultados de ambos os universos
+                        assertTrue(result.content.any { it.universe == Universe.DRAGON_BALL })
+                        assertTrue(result.content.any { it.universe == Universe.POKEMON })
+                        assertEquals(page, result.page)
+                        assertEquals(size, result.size)
                 }
 }

@@ -39,8 +39,20 @@ class PokemonApiAdapter(
     @Retry(name = "pokemonApi")
     @Cacheable(value = ["pokemon"], key = "'list-' + #offset + '-' + #limit")
     override suspend fun getPokemons(offset: Int, limit: Int): PokemonPageResponse {
-        logger.info("Buscando pokemons: offset $offset, limite $limit")
-        logger.debug("URL Base: {}, Endpoint: /pokemon", baseUrl)
+        // Para garantir que estamos buscando os primeiros Pokémon da primeira página
+        // O offset da PokeAPI começa com 0 para o primeiro Pokémon (Bulbasaur)
+        val adjustedOffset = if (offset == 0) 0 else offset * limit
+        val validLimit = limit.coerceAtLeast(1)
+
+        logger.info(
+                "Buscando pokemons: offset ajustado $adjustedOffset (página original $offset), limite $validLimit"
+        )
+        logger.debug(
+                "URL Base: {}, Endpoint: /pokemon?offset={}&limit={}",
+                baseUrl,
+                adjustedOffset,
+                validLimit
+        )
 
         return try {
             pokemonWebClient
@@ -48,8 +60,8 @@ class PokemonApiAdapter(
                     .uri { uriBuilder ->
                         uriBuilder
                                 .path("/pokemon")
-                                .queryParam("offset", offset)
-                                .queryParam("limit", limit)
+                                .queryParam("offset", adjustedOffset)
+                                .queryParam("limit", validLimit)
                                 .build()
                     }
                     .retrieve()
