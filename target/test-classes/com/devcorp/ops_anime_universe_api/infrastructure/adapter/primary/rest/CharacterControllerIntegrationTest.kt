@@ -144,4 +144,27 @@ class CharacterControllerIntegrationTest {
                                         }
                                 }
                 }
+
+        @Test
+        fun `ping endpoint should return status UP`() =
+                testScope.runTest {
+                        // Act & Assert
+                        webTestClient
+                                .get()
+                                .uri("/api/characters/ping")
+                                .exchange()
+                                .expectStatus()
+                                .isOk
+                                .expectBody<Map<String, String>>()
+                                .consumeWith { response ->
+                                        val body = response.responseBody
+                                        assert(body != null) { "Response body should not be null" }
+                                        assert(body!!["status"] == "UP") {
+                                                "Expected status UP, but got ${body["status"]}"
+                                        }
+                                        assert(body.containsKey("message")) {
+                                                "Response should contain a message"
+                                        }
+                                }
+                }
 }

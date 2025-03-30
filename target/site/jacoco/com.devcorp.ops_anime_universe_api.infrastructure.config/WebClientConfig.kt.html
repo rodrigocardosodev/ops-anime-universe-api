@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="pt"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebClientConfig.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">ops-anime-universe-api</a> &gt; <a href="index.source.html" class="el_package">com.devcorp.ops_anime_universe_api.infrastructure.config</a> &gt; <span class="el_source">WebClientConfig.kt</span></div><h1>WebClientConfig.kt</h1><pre class="source lang-java linenums">package com.devcorp.ops_anime_universe_api.infrastructure.config
+
+import io.netty.channel.ChannelOption
+import io.netty.handler.timeout.ReadTimeoutHandler
+import io.netty.handler.timeout.WriteTimeoutHandler
+import java.time.Duration
+import java.util.concurrent.TimeUnit
+import org.slf4j.LoggerFactory
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
+import org.springframework.http.client.reactive.ReactorClientHttpConnector
+import org.springframework.web.reactive.function.client.ExchangeFilterFunction
+import org.springframework.web.reactive.function.client.ExchangeStrategies
+import org.springframework.web.reactive.function.client.WebClient
+import reactor.core.publisher.Mono
+import reactor.netty.http.client.HttpClient
+import reactor.netty.resources.ConnectionProvider
+
+/**
+ * Configuração do WebClient para chamadas a APIs externas com otimizações de performance e
+ * resiliência
+ */
+<span class="fc" id="L23">@Configuration</span>
+<span class="fc" id="L24">class WebClientConfig {</span>
+<span class="fc" id="L25">        private val logger = LoggerFactory.getLogger(WebClientConfig::class.java)</span>
+
+        // Tamanho do buffer de memória em MB
+<span class="fc" id="L28">        private val maxInMemorySize = 16 * 1024 * 1024</span>
+
+        // Configurações de timeout padrão em millisegundos
+<span class="fc" id="L31">        private val connectTimeoutMs = 10000</span>
+<span class="fc" id="L32">        private val readTimeoutSeconds = 30L</span>
+<span class="fc" id="L33">        private val writeTimeoutSeconds = 30L</span>
+<span class="fc" id="L34">        private val responseTimeoutMs = 30000L</span>
+
+        // Configurações de pool de conexões
+<span class="fc" id="L37">        private val maxConnections = 500</span>
+<span class="fc" id="L38">        private val maxIdleTimeSeconds = 60L</span>
+<span class="fc" id="L39">        private val pendingAcquireTimeoutSeconds = 30L</span>
+<span class="fc" id="L40">        private val evictInBackgroundSeconds = 120L</span>
+
+        /**
+         * Configura o WebClient.Builder com memória otimizada para manipular respostas grandes e
+         * configurações de performance
+         */
+        @Bean
+        fun webClientBuilder(): WebClient.Builder {
+                // Aumenta o tamanho máximo de memória para o buffer do WebClient
+<span class="fc" id="L49">                val exchangeStrategies =</span>
+<span class="fc" id="L50">                        ExchangeStrategies.builder()</span>
+<span class="fc" id="L51">                                .codecs { configurer -&gt;</span>
+<span class="fc" id="L52">                                        configurer.defaultCodecs().maxInMemorySize(maxInMemorySize)</span>
+<span class="fc" id="L53">                                }</span>
+<span class="fc" id="L54">                                .build()</span>
+
+                // Configura o ConnectionProvider com pool otimizado
+<span class="fc" id="L57">                val provider =</span>
+<span class="fc" id="L58">                        ConnectionProvider.builder(&quot;anime-universe-pool&quot;)</span>
+<span class="fc" id="L59">                                .maxConnections(maxConnections)</span>
+<span class="fc" id="L60">                                .maxIdleTime(Duration.ofSeconds(maxIdleTimeSeconds))</span>
+<span class="fc" id="L61">                                .pendingAcquireTimeout(</span>
+<span class="fc" id="L62">                                        Duration.ofSeconds(pendingAcquireTimeoutSeconds)</span>
+                                )
+<span class="fc" id="L64">                                .evictInBackground(Duration.ofSeconds(evictInBackgroundSeconds))</span>
+<span class="fc" id="L65">                                .build()</span>
+
+                // Cria um HttpClient com timeout configurado e outras otimizações
+<span class="fc" id="L68">                val httpClient =</span>
+<span class="fc" id="L69">                        HttpClient.create(provider)</span>
+<span class="fc" id="L70">                                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeoutMs)</span>
+<span class="fc" id="L71">                                .option(ChannelOption.SO_KEEPALIVE, true)</span>
+<span class="fc" id="L72">                                .option(ChannelOption.TCP_NODELAY, true)</span>
+<span class="fc" id="L73">                                .responseTimeout(Duration.ofMillis(responseTimeoutMs))</span>
+<span class="pc" id="L74">                                .doOnConnected { conn -&gt;</span>
+<span class="nc" id="L75">                                        conn.addHandlerFirst(</span>
+<span class="nc" id="L76">                                                        &quot;readTimeout&quot;,</span>
+<span class="nc" id="L77">                                                        io.netty.handler.timeout.ReadTimeoutHandler(</span>
+<span class="nc" id="L78">                                                                readTimeoutSeconds,</span>
+<span class="nc" id="L79">                                                                TimeUnit.SECONDS</span>
+                                                        )
+                                                )
+<span class="nc" id="L82">                                                .addHandlerFirst(</span>
+<span class="nc" id="L83">                                                        &quot;writeTimeout&quot;,</span>
+                                                        io.netty.handler.timeout
+<span class="nc" id="L85">                                                                .WriteTimeoutHandler(</span>
+<span class="nc" id="L86">                                                                        writeTimeoutSeconds,</span>
+<span class="nc" id="L87">                                                                        TimeUnit.SECONDS</span>
+                                                                )
+                                                )
+<span class="nc" id="L90">                                }</span>
+<span class="fc" id="L91">                                .compress(</span>
+<span class="fc" id="L92">                                        true</span>
+                                ) // Adiciona compressão para reduzir o tamanho das respostas
+
+<span class="fc" id="L95">                return WebClient.builder()</span>
+<span class="fc" id="L96">                        .clientConnector(ReactorClientHttpConnector(httpClient))</span>
+<span class="fc" id="L97">                        .exchangeStrategies(exchangeStrategies)</span>
+<span class="fc" id="L98">                        .filter(logRequest())</span>
+        }
+
+        /** Cria um filtro para logar requisições (útil para debug) */
+        private fun logRequest(): ExchangeFilterFunction {
+<span class="fc" id="L103">                return ExchangeFilterFunction.ofRequestProcessor { clientRequest -&gt;</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">                        if (logger.isDebugEnabled) {</span>
+<span class="nc" id="L105">                                logger.debug(</span>
+<span class="nc" id="L106">                                        &quot;Request: {} {}&quot;,</span>
+<span class="nc" id="L107">                                        clientRequest.method(),</span>
+<span class="nc" id="L108">                                        clientRequest.url()</span>
+                                )
+                        }
+<span class="nc" id="L111">                        Mono.just(clientRequest)</span>
+                }
+        }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

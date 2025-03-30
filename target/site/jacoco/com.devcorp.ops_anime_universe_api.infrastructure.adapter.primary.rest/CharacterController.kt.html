@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="pt"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CharacterController.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">ops-anime-universe-api</a> &gt; <a href="index.source.html" class="el_package">com.devcorp.ops_anime_universe_api.infrastructure.adapter.primary.rest</a> &gt; <span class="el_source">CharacterController.kt</span></div><h1>CharacterController.kt</h1><pre class="source lang-java linenums">package com.devcorp.ops_anime_universe_api.infrastructure.adapter.primary.rest
+
+import com.devcorp.ops_anime_universe_api.domain.model.Character
+import com.devcorp.ops_anime_universe_api.domain.model.PageResponse
+import com.devcorp.ops_anime_universe_api.domain.usecase.CharacterUseCase
+import org.slf4j.LoggerFactory
+import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.RestController
+
+/** Controlador para a API REST de personagens */
+<span class="fc" id="L14">@RestController</span>
+@RequestMapping(&quot;/api/characters&quot;)
+<span class="fc" id="L16">class CharacterController(private val characterUseCase: CharacterUseCase) {</span>
+
+<span class="fc" id="L18">  private val logger = LoggerFactory.getLogger(CharacterController::class.java)</span>
+
+  /**
+   * Endpoint para listar personagens de todos os universos
+   *
+   * @param page Número da página (começando em 0)
+   * @param size Tamanho da página (entre 1 e 50)
+   * @return Resposta paginada com personagens de todos os universos
+   */
+  @GetMapping
+<span class="fc" id="L28">  suspend fun getCharacters(</span>
+          @RequestParam(defaultValue = &quot;0&quot;) page: Int,
+          @RequestParam(defaultValue = &quot;20&quot;) size: Int
+  ): ResponseEntity&lt;PageResponse&lt;Character&gt;&gt; {
+<span class="fc" id="L32">    logger.info(&quot;Recebida requisição para buscar personagens: página $page, tamanho $size&quot;)</span>
+
+<span class="fc" id="L34">    val result = characterUseCase.getCharacters(page, size)</span>
+
+<span class="fc" id="L36">    logger.info(&quot;Retornando ${result.content.size} personagens&quot;)</span>
+<span class="fc" id="L37">    return ResponseEntity.ok(result)</span>
+  }
+
+  /**
+   * Endpoint para verificar se o serviço está respondendo (healthcheck simplificado)
+   *
+   * @return 200 OK se o serviço estiver disponível
+   */
+  @GetMapping(&quot;/ping&quot;)
+  suspend fun ping(): ResponseEntity&lt;Map&lt;String, String&gt;&gt; {
+<span class="fc" id="L47">    return ResponseEntity.ok(</span>
+<span class="fc" id="L48">            mapOf(&quot;status&quot; to &quot;UP&quot;, &quot;message&quot; to &quot;Serviço de personagens disponível&quot;)</span>
+    )
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

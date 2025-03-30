@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="pt"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DragonBallCharacterService.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">ops-anime-universe-api</a> &gt; <a href="index.source.html" class="el_package">com.devcorp.ops_anime_universe_api.domain.service</a> &gt; <span class="el_source">DragonBallCharacterService.kt</span></div><h1>DragonBallCharacterService.kt</h1><pre class="source lang-java linenums">package com.devcorp.ops_anime_universe_api.domain.service
+
+import com.devcorp.ops_anime_universe_api.domain.model.Character
+import com.devcorp.ops_anime_universe_api.domain.model.Universe
+import com.devcorp.ops_anime_universe_api.domain.port.api.CharacterService
+import com.devcorp.ops_anime_universe_api.domain.port.spi.DragonBallApiClient
+import org.springframework.stereotype.Service
+
+/** Implementação do serviço de personagens do Dragon Ball */
+<span class="fc" id="L10">@Service</span>
+<span class="fc" id="L11">class DragonBallCharacterService(private val dragonBallApiClient: DragonBallApiClient) :</span>
+        CharacterService {
+
+<span class="fc" id="L14">  override fun getUniverse(): Universe = Universe.DRAGON_BALL</span>
+
+<span class="fc" id="L16">  override suspend fun getCharacters(page: Int, size: Int): List&lt;Character&gt; {</span>
+<span class="fc" id="L17">    val response =</span>
+<span class="fc" id="L18">            dragonBallApiClient.getCharacters(</span>
+<span class="fc" id="L19">                    page + 1,</span>
+<span class="fc" id="L20">                    size</span>
+            ) // API do Dragon Ball começa com página 1
+
+<span class="fc" id="L23">    return response.items.map { character -&gt;</span>
+<span class="fc" id="L24">      Character(id = character.id, name = character.name, universe = Universe.DRAGON_BALL)</span>
+    }
+  }
+
+  override suspend fun isAvailable(): Boolean {
+<span class="fc" id="L29">    return dragonBallApiClient.isAvailable()</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

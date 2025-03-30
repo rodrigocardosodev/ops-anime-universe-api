@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="pt"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CharacterUseCase.kt</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">ops-anime-universe-api</a> &gt; <a href="index.source.html" class="el_package">com.devcorp.ops_anime_universe_api.domain.usecase</a> &gt; <span class="el_source">CharacterUseCase.kt</span></div><h1>CharacterUseCase.kt</h1><pre class="source lang-java linenums">package com.devcorp.ops_anime_universe_api.domain.usecase
+
+import com.devcorp.ops_anime_universe_api.domain.model.Character
+import com.devcorp.ops_anime_universe_api.domain.model.PageResponse
+import com.devcorp.ops_anime_universe_api.domain.model.Status
+import com.devcorp.ops_anime_universe_api.domain.port.api.CharacterService
+import kotlin.math.min
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+import org.slf4j.LoggerFactory
+import org.springframework.cache.annotation.Cacheable
+import org.springframework.stereotype.Component
+
+/**
+ * Caso de uso para orquestrar as chamadas aos serviços de personagens de diferentes universos,
+ * aplicando balanceamento de carga e resiliência
+ */
+<span class="fc" id="L25">@Component</span>
+<span class="fc" id="L26">class CharacterUseCase(private val characterServices: List&lt;CharacterService&gt;) {</span>
+<span class="fc" id="L27">  private val logger = LoggerFactory.getLogger(CharacterUseCase::class.java)</span>
+
+  companion object {
+    const val MAX_PAGE_SIZE = 50
+    // Estimativa de elementos totais - pode ser ajustada conforme necessário
+    private const val ESTIMATED_TOTAL_ELEMENTS = 1000L
+    // Timeout para operações em millisegundos
+    private const val OPERATION_TIMEOUT_MS = 30000L
+    private const val SERVICE_TIMEOUT_MS = 10000L
+    private const val HEALTH_CHECK_TIMEOUT_MS = 5000L
+  }
+
+  // Escopo de coroutine com SupervisorJob para não propagar falhas entre filhos
+<span class="fc" id="L40">  private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)</span>
+
+  /**
+   * Busca personagens de todos os universos de forma paginada e balanceada
+   *
+   * @param page Número da página (começando em 0)
+   * @param size Tamanho da página (máximo 50)
+   * @return Resposta paginada com personagens de todos os universos
+   */
+  @Cacheable(value = [&quot;characters&quot;], key = &quot;#page + '-' + #size&quot;)
+  suspend fun getCharacters(page: Int, size: Int): PageResponse&lt;Character&gt; {
+<span class="fc" id="L51">    val validPage = page.coerceAtLeast(0)</span>
+<span class="fc" id="L52">    val effectiveSize = min(size, MAX_PAGE_SIZE).coerceAtLeast(1)</span>
+
+<span class="fc" id="L54">    logger.info(&quot;Buscando personagens: página $validPage, tamanho $effectiveSize&quot;)</span>
+
+<span class="fc" id="L56">    return withContext(Dispatchers.IO) {</span>
+<span class="fc" id="L57">      try {</span>
+        // Aplica timeout global para a operação
+<span class="fc" id="L59">        withTimeout(OPERATION_TIMEOUT_MS) {</span>
+          // Distribui a carga entre os serviços disponíveis
+<span class="fc" id="L61">          val results = fetchCharactersFromAllServices(this, validPage, effectiveSize)</span>
+<span class="fc" id="L62">          PageResponse.of(results, validPage, effectiveSize, ESTIMATED_TOTAL_ELEMENTS)</span>
+        }
+<span class="nc" id="L64">      } catch (e: Exception) {</span>
+<span class="nc" id="L65">        logger.error(&quot;Erro ao buscar personagens: ${e.message}&quot;, e)</span>
+<span class="pc" id="L66">        PageResponse.of(emptyList(), validPage, effectiveSize, 0)</span>
+      }
+    }
+  }
+
+  /** Busca personagens de todos os serviços com distribuição balanceada */
+  private suspend fun fetchCharactersFromAllServices(
+          scope: CoroutineScope,
+          page: Int,
+          size: Int
+  ): List&lt;Character&gt; {
+<span class="fc bfc" id="L77" title="All 2 branches covered.">    if (characterServices.isEmpty()) {</span>
+<span class="fc" id="L78">      logger.warn(&quot;Nenhum serviço de personagens disponível&quot;)</span>
+<span class="fc" id="L79">      return emptyList()</span>
+    }
+
+    // Calcula o número de personagens a buscar de cada serviço
+<span class="fc" id="L83">    val servicesCount = characterServices.size</span>
+<span class="fc" id="L84">    val charactersPerService = size / servicesCount</span>
+<span class="fc" id="L85">    val remainder = size % servicesCount</span>
+
+    // Cria uma tarefa assíncrona para cada serviço com tamanho calculado
+<span class="fc" id="L88">    val deferredResults =</span>
+<span class="fc" id="L89">            characterServices.mapIndexed { index, service -&gt;</span>
+<span class="fc" id="L90">              scope.async {</span>
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">                val serviceSize = charactersPerService + if (index &lt; remainder) 1 else 0</span>
+<span class="fc" id="L92">                val servicePage =</span>
+<span class="fc" id="L93">                        calculateServicePage(page, size, serviceSize, index, servicesCount)</span>
+
+                // Aplica timeout para cada serviço individual
+<span class="fc bfc" id="L96" title="All 2 branches covered.">                withTimeoutOrNull(SERVICE_TIMEOUT_MS) {</span>
+<span class="fc" id="L97">                  try {</span>
+<span class="fc" id="L98">                    service.getCharacters(servicePage, serviceSize)</span>
+<span class="fc" id="L99">                  } catch (e: Exception) {</span>
+<span class="fc" id="L100">                    logger.error(</span>
+<span class="fc" id="L101">                            &quot;Erro ao buscar personagens do universo ${service.getUniverse()}&quot;,</span>
+<span class="fc" id="L102">                            e</span>
+                    )
+<span class="fc" id="L104">                    emptyList()</span>
+                  }
+                }
+<span class="fc" id="L107">                        ?: run {</span>
+<span class="fc" id="L108">                          logger.warn(</span>
+<span class="fc" id="L109">                                  &quot;Timeout ao buscar personagens do universo ${service.getUniverse()}&quot;</span>
+                          )
+<span class="fc" id="L111">                          emptyList()</span>
+                        }
+              }
+            }
+
+    // Aguarda os resultados e os combina, ordenando por nome
+<span class="fc" id="L117">    return try {</span>
+<span class="fc" id="L118">      deferredResults.awaitAll().flatten().sortedBy { it.name }</span>
+<span class="nc" id="L119">    } catch (e: Exception) {</span>
+<span class="nc" id="L120">      logger.error(&quot;Erro ao aguardar resultados dos serviços: ${e.message}&quot;, e)</span>
+<span class="pc" id="L121">      emptyList()</span>
+    }
+  }
+
+  /**
+   * Verifica a disponibilidade de todos os serviços
+   *
+   * @return Mapa com os nomes dos serviços e seus status
+   */
+  suspend fun checkServicesAvailability(): Map&lt;String, Status&gt; {
+<span class="fc" id="L131">    logger.info(&quot;Verificando disponibilidade dos serviços&quot;)</span>
+
+<span class="fc" id="L133">    return coroutineScope {</span>
+<span class="fc" id="L134">      try {</span>
+<span class="fc" id="L135">        val deferredResults =</span>
+<span class="fc" id="L136">                characterServices.map { service -&gt;</span>
+<span class="fc" id="L137">                  async(Dispatchers.IO) {</span>
+                    // Aplica timeout para cada verificação
+<span class="pc bpc" id="L139" title="1 of 2 branches missed.">                    withTimeoutOrNull(HEALTH_CHECK_TIMEOUT_MS) { checkServiceAvailability(service) }</span>
+<span class="nc" id="L140">                            ?: (service.getUniverse().name to Status.DOWN)</span>
+                  }
+                }
+
+<span class="fc" id="L144">        deferredResults.awaitAll().toMap()</span>
+<span class="nc" id="L145">      } catch (e: Exception) {</span>
+<span class="nc" id="L146">        logger.error(&quot;Erro ao verificar disponibilidade dos serviços: ${e.message}&quot;, e)</span>
+<span class="nc" id="L147">        characterServices.associate { it.getUniverse().name to Status.UNKNOWN }</span>
+      }
+    }
+  }
+
+  /** Verifica a disponibilidade de um serviço específico */
+  private suspend fun checkServiceAvailability(service: CharacterService): Pair&lt;String, Status&gt; {
+<span class="fc" id="L154">    val universe = service.getUniverse()</span>
+<span class="fc" id="L155">    val available =</span>
+<span class="fc" id="L156">            try {</span>
+<span class="fc" id="L157">              service.isAvailable()</span>
+<span class="fc" id="L158">            } catch (e: Exception) {</span>
+<span class="fc" id="L159">              logger.error(</span>
+<span class="fc" id="L160">                      &quot;Erro ao verificar disponibilidade do serviço ${universe.name}: ${e.message}&quot;,</span>
+<span class="fc" id="L161">                      e</span>
+              )
+<span class="fc" id="L163">              false</span>
+            }
+<span class="fc bfc" id="L165" title="All 2 branches covered.">    return universe.name to if (available) Status.UP else Status.DOWN</span>
+  }
+
+  /**
+   * Calcula a página a ser solicitada para um serviço específico considerando a distribuição
+   * balanceada entre serviços
+   */
+  private fun calculateServicePage(
+          page: Int,
+          pageSize: Int,
+          serviceSize: Int,
+          serviceIndex: Int,
+          servicesCount: Int
+  ): Int {
+<span class="pc bpc" id="L179" title="1 of 2 branches missed.">    if (serviceSize &lt;= 0) return 0</span>
+
+<span class="fc" id="L181">    val globalOffset = page * pageSize</span>
+<span class="fc" id="L182">    val serviceOffset = (globalOffset + serviceIndex * serviceSize) / serviceSize</span>
+<span class="fc" id="L183">    return serviceOffset.coerceAtLeast(0)</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
