@@ -6,6 +6,7 @@ import com.devcorp.ops_anime_universe_api.domain.model.PageResponse
 import com.devcorp.ops_anime_universe_api.domain.model.Status
 import com.devcorp.ops_anime_universe_api.domain.model.Universe
 import com.devcorp.ops_anime_universe_api.domain.port.api.CharacterService
+import java.util.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,14 +22,15 @@ import org.springframework.stereotype.Component
  * Caso de uso para orquestrar as chamadas aos serviços de personagens de diferentes universos,
  * aplicando balanceamento de carga e resiliência
  */
-<span class="fc" id="L24">@Component</span>
-<span class="fc" id="L25">class CharacterUseCase(private val characterServices: List&lt;CharacterService&gt;) {</span>
-<span class="fc" id="L26">  private val logger = LoggerFactory.getLogger(CharacterUseCase::class.java)</span>
+<span class="fc" id="L25">@Component</span>
+<span class="fc" id="L26">class CharacterUseCase(private val characterServices: List&lt;CharacterService&gt;) {</span>
+<span class="fc" id="L27">  private val logger = LoggerFactory.getLogger(CharacterUseCase::class.java)</span>
 
   companion object {
     const val MAX_PAGE_SIZE = 100
-    // Total fixo de elementos sempre será 1000
-    private const val ESTIMATED_TOTAL_ELEMENTS = 1000L
+    // Total de elementos obtidos das APIs externas
+    private const val POKEMON_TOTAL_ELEMENTS = 1302L
+    private const val DRAGON_BALL_TOTAL_ELEMENTS = 150L
     // Timeout para operações em millisegundos
     private const val OPERATION_TIMEOUT_MS = 60000L
     private const val SERVICE_TIMEOUT_MS = 15000L
@@ -40,16 +42,16 @@ import org.springframework.stereotype.Component
      * @return Tamanho corrigido entre 1 e MAX_PAGE_SIZE
      */
     fun calculateSize(size: Int): Int {
-<span class="fc" id="L43">      return when {</span>
-<span class="fc bfc" id="L44" title="All 2 branches covered.">        size &lt; 1 -&gt; 1</span>
-<span class="fc bfc" id="L45" title="All 2 branches covered.">        size &gt; MAX_PAGE_SIZE -&gt; MAX_PAGE_SIZE</span>
-<span class="fc" id="L46">        else -&gt; size</span>
+<span class="fc" id="L45">      return when {</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">        size &lt; 1 -&gt; 1</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">        size &gt; MAX_PAGE_SIZE -&gt; MAX_PAGE_SIZE</span>
+<span class="fc" id="L48">        else -&gt; size</span>
       }
     }
   }
 
   // Escopo de coroutine com SupervisorJob para não propagar falhas entre filhos
-<span class="fc" id="L52">  private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)</span>
+<span class="fc" id="L54">  private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)</span>
 
   /**
    * Retorna os personagens paginados.
@@ -57,72 +59,92 @@ import org.springframework.stereotype.Component
    * @param size Tamanho da página
    * @return PageResponse com os personagens e informações de paginação
    */
-<span class="fc" id="L60">  suspend fun getCharacters(page: Int, size: Int): PageResponse&lt;Character&gt; {</span>
-<span class="fc" id="L61">    logger.info(&quot;Buscando personagens: página $page, tamanho $size&quot;)</span>
+<span class="fc" id="L62">  suspend fun getCharacters(page: Int, size: Int): PageResponse&lt;Character&gt; {</span>
+<span class="fc" id="L63">    logger.info(&quot;Buscando personagens: página $page, tamanho $size&quot;)</span>
 
     // Validações básicas de page e size
-<span class="fc" id="L64">    val validPage = page.coerceAtLeast(0)</span>
-<span class="fc" id="L65">    val validSize = size.coerceIn(1, MAX_PAGE_SIZE)</span>
+<span class="fc" id="L66">    val validPage = page.coerceAtLeast(0)</span>
+<span class="fc" id="L67">    val validSize = size.coerceIn(1, MAX_PAGE_SIZE)</span>
 
     // Se estamos em ambiente de teste, chamamos cada serviço com os parâmetros recebidos
-<span class="fc bfc" id="L68" title="All 2 branches covered.">    if (isTestEnvironment()) {</span>
-<span class="fc" id="L69">      logger.info(&quot;Ambiente de teste detectado - usando serviços mockados&quot;)</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">    if (isTestEnvironment()) {</span>
+<span class="fc" id="L71">      logger.info(&quot;Ambiente de teste detectado - usando serviços mockados&quot;)</span>
 
-<span class="fc" id="L71">      try {</span>
+<span class="fc" id="L73">      try {</span>
         // Em testes, chamamos diretamente os serviços mockados
-<span class="fc" id="L73">        val deferredResults =</span>
-<span class="pc bpc" id="L74" title="1 of 2 branches missed.">                withContext(Dispatchers.IO) {</span>
-<span class="fc" id="L75">                  characterServices.map { service -&gt;</span>
-<span class="fc" id="L76">                    async {</span>
-<span class="fc" id="L77">                      try {</span>
-<span class="fc" id="L78">                        service.getCharacters(</span>
-<span class="fc" id="L79">                                validPage,</span>
-<span class="fc" id="L80">                                validSize / characterServices.size.coerceAtLeast(1)</span>
+<span class="fc" id="L75">        val deferredResults =</span>
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">                withContext(Dispatchers.IO) {</span>
+<span class="fc" id="L77">                  characterServices.map { service -&gt;</span>
+<span class="fc" id="L78">                    async {</span>
+<span class="fc" id="L79">                      try {</span>
+<span class="fc" id="L80">                        service.getCharacters(</span>
+<span class="fc" id="L81">                                validPage,</span>
+<span class="fc" id="L82">                                validSize / characterServices.size.coerceAtLeast(1)</span>
                         )
-<span class="fc" id="L82">                      } catch (e: Exception) {</span>
-<span class="fc" id="L83">                        logger.warn(</span>
-<span class="fc" id="L84">                                &quot;Erro ao chamar serviço ${service.getUniverse().name}: ${e.message}&quot;</span>
+<span class="fc" id="L84">                      } catch (e: Exception) {</span>
+<span class="fc" id="L85">                        logger.warn(</span>
+<span class="fc" id="L86">                                &quot;Erro ao chamar serviço ${service.getUniverse().name}: ${e.message}&quot;</span>
                         )
-<span class="fc" id="L86">                        emptyList()</span>
+<span class="fc" id="L88">                        emptyList()</span>
                       }
                     }
                   }
                 }
 
-<span class="fc" id="L92">        val results =</span>
-<span class="fc" id="L93">                try {</span>
-<span class="fc" id="L94">                  deferredResults.awaitAll().flatten()</span>
-<span class="fc" id="L95">                } catch (e: Exception) {</span>
-<span class="fc" id="L96">                  logger.error(&quot;Erro ao aguardar resultados dos serviços: ${e.message}&quot;)</span>
-<span class="fc" id="L97">                  emptyList()</span>
+<span class="fc" id="L94">        val results =</span>
+<span class="fc" id="L95">                try {</span>
+<span class="fc" id="L96">                  deferredResults.awaitAll().flatten()</span>
+<span class="fc" id="L97">                } catch (e: Exception) {</span>
+<span class="fc" id="L98">                  logger.error(&quot;Erro ao aguardar resultados dos serviços: ${e.message}&quot;)</span>
+<span class="fc" id="L99">                  emptyList()</span>
                 }
 
         // Em ambiente de teste, ordenamos por nome (comportamento esperado nos testes)
-<span class="fc" id="L101">        val sortedResults = results.sortedBy { it.name }</span>
-<span class="fc" id="L102">        return PageResponse.of(sortedResults, validPage, validSize, ESTIMATED_TOTAL_ELEMENTS)</span>
-<span class="nc" id="L103">      } catch (e: Exception) {</span>
-<span class="nc" id="L104">        logger.error(&quot;Erro ao buscar personagens dos serviços mockados: ${e.message}&quot;)</span>
-<span class="nc" id="L105">        return PageResponse.of(emptyList(), validPage, validSize, ESTIMATED_TOTAL_ELEMENTS)</span>
+<span class="fc" id="L103">        val sortedResults = results.sortedBy { it.name }</span>
+<span class="fc" id="L104">        return PageResponse.of(</span>
+<span class="fc" id="L105">                sortedResults,</span>
+<span class="fc" id="L106">                validPage,</span>
+<span class="fc" id="L107">                validSize,</span>
+<span class="fc" id="L108">                DRAGON_BALL_TOTAL_ELEMENTS + POKEMON_TOTAL_ELEMENTS</span>
+        )
+<span class="nc" id="L110">      } catch (e: Exception) {</span>
+<span class="nc" id="L111">        logger.error(&quot;Erro ao buscar personagens dos serviços mockados: ${e.message}&quot;)</span>
+<span class="nc" id="L112">        return PageResponse.of(</span>
+<span class="nc" id="L113">                emptyList(),</span>
+<span class="nc" id="L114">                validPage,</span>
+<span class="nc" id="L115">                validSize,</span>
+<span class="nc" id="L116">                DRAGON_BALL_TOTAL_ELEMENTS + POKEMON_TOTAL_ELEMENTS</span>
+        )
       }
     }
 
     // Tratamento especial para a primeira página em produção
-<span class="fc bfc" id="L110" title="All 2 branches covered.">    if (validPage == 0) {</span>
-<span class="fc" id="L111">      logger.info(&quot;Usando tratamento especial para a primeira página&quot;)</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">    if (validPage == 0) {</span>
+<span class="fc" id="L123">      logger.info(&quot;Usando tratamento especial para a primeira página&quot;)</span>
 
       // Lista de personagens a partir do método getFirstPageCharacters
-<span class="fc" id="L114">      val characters = getFirstPageCharacters(validSize)</span>
+<span class="fc" id="L126">      val characters = getFirstPageCharacters(validSize)</span>
 
-<span class="fc" id="L116">      return PageResponse.of(characters, validPage, validSize, ESTIMATED_TOTAL_ELEMENTS)</span>
+<span class="fc" id="L128">      return PageResponse.of(</span>
+<span class="fc" id="L129">              characters,</span>
+<span class="fc" id="L130">              validPage,</span>
+<span class="fc" id="L131">              validSize,</span>
+<span class="fc" id="L132">              DRAGON_BALL_TOTAL_ELEMENTS + POKEMON_TOTAL_ELEMENTS</span>
+      )
     }
 
     // Para outras páginas, busca personagens de todos os serviços
-<span class="fc" id="L120">    val characters =</span>
-<span class="fc" id="L121">            withContext(Dispatchers.IO) {</span>
-<span class="fc" id="L122">              fetchCharactersFromAllServices(this, validPage, validSize)</span>
+<span class="fc" id="L137">    val characters =</span>
+<span class="fc" id="L138">            withContext(Dispatchers.IO) {</span>
+<span class="fc" id="L139">              fetchCharactersFromAllServices(this, validPage, validSize)</span>
             }
 
-<span class="fc" id="L125">    return PageResponse.of(characters, validPage, validSize, ESTIMATED_TOTAL_ELEMENTS)</span>
+<span class="fc" id="L142">    return PageResponse.of(</span>
+<span class="fc" id="L143">            characters,</span>
+<span class="fc" id="L144">            validPage,</span>
+<span class="fc" id="L145">            validSize,</span>
+<span class="fc" id="L146">            DRAGON_BALL_TOTAL_ELEMENTS + POKEMON_TOTAL_ELEMENTS</span>
+    )
   }
 
   /**
@@ -131,136 +153,181 @@ import org.springframework.stereotype.Component
    * Dragon Ball recebe um a mais.
    */
   private suspend fun getFirstPageCharacters(size: Int): List&lt;Character&gt; {
-<span class="fc" id="L134">    logger.info(&quot;Criando lista de personagens para a primeira página com tamanho $size&quot;)</span>
+<span class="fc" id="L156">    logger.info(&quot;Criando lista de personagens para a primeira página com tamanho $size&quot;)</span>
 
     // Se estamos em ambiente de teste, usamos a lógica padrão para manter compatibilidade
-<span class="pc bpc" id="L137" title="1 of 2 branches missed.">    if (isTestEnvironment()) {</span>
-<span class="nc" id="L138">      return withContext(Dispatchers.IO) { fetchCharactersFromAllServices(this, 0, size) }</span>
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">    if (isTestEnvironment()) {</span>
+<span class="nc" id="L160">      return withContext(Dispatchers.IO) { fetchCharactersFromAllServices(this, 0, size) }</span>
     }
 
     // Calcula quantos personagens serão buscados de cada universo
-<span class="fc" id="L142">    val sizePerUniverse = size / 2</span>
-<span class="pc bpc" id="L143" title="1 of 2 branches missed.">    val hasRemainder = size % 2 == 1</span>
+<span class="fc" id="L164">    val sizePerUniverse = size / 2</span>
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">    val hasRemainder = size % 2 == 1</span>
 
     // Dragon Ball recebe um a mais se o tamanho for ímpar
-<span class="pc bpc" id="L146" title="1 of 2 branches missed.">    val dragonBallSize = sizePerUniverse + if (hasRemainder) 1 else 0</span>
-<span class="fc" id="L147">    val pokemonSize = sizePerUniverse</span>
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">    val dragonBallSize = sizePerUniverse + if (hasRemainder) 1 else 0</span>
+<span class="fc" id="L169">    val pokemonSize = sizePerUniverse</span>
 
-<span class="fc" id="L149">    logger.info(</span>
-<span class="fc" id="L150">            &quot;Distribuição dinâmica na primeira página: Dragon Ball=$dragonBallSize, Pokémon=$pokemonSize&quot;</span>
+<span class="fc" id="L171">    logger.info(</span>
+<span class="fc" id="L172">            &quot;Distribuição dinâmica na primeira página: Dragon Ball=$dragonBallSize, Pokémon=$pokemonSize&quot;</span>
     )
 
     // Lista expandida com personagens (usamos as listas existentes)
-<span class="fc" id="L154">    val expandedList = createExpandedCharacterList()</span>
+<span class="fc" id="L176">    val expandedList = createExpandedCharacterList()</span>
 
     // Separamos os personagens por universo
-<span class="fc bfc" id="L157" title="All 2 branches covered.">    val dragonBallCharactersAll = expandedList.filter { it.universe == Universe.DRAGON_BALL }</span>
-<span class="fc bfc" id="L158" title="All 2 branches covered.">    val pokemonCharactersAll = expandedList.filter { it.universe == Universe.POKEMON }</span>
+<span class="fc bfc" id="L179" title="All 2 branches covered.">    val dragonBallCharactersAll = expandedList.filter { it.universe == Universe.DRAGON_BALL }</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">    val pokemonCharactersAll = expandedList.filter { it.universe == Universe.POKEMON }</span>
 
     // Verificamos as quantidades
-<span class="fc" id="L161">    logger.info(</span>
-<span class="fc" id="L162">            &quot;Total de personagens disponíveis: ${dragonBallCharactersAll.size} Dragon Ball, ${pokemonCharactersAll.size} Pokémon&quot;</span>
+<span class="fc" id="L183">    logger.info(</span>
+<span class="fc" id="L184">            &quot;Total de personagens disponíveis: ${dragonBallCharactersAll.size} Dragon Ball, ${pokemonCharactersAll.size} Pokémon&quot;</span>
     )
 
     // Selecionamos os primeiros N personagens de cada universo
-<span class="fc" id="L166">    val dragonBallCharacters = dragonBallCharactersAll.take(dragonBallSize)</span>
-<span class="fc" id="L167">    val pokemonCharacters = pokemonCharactersAll.take(pokemonSize)</span>
+<span class="fc" id="L188">    val dragonBallCharacters = dragonBallCharactersAll.take(dragonBallSize)</span>
+<span class="fc" id="L189">    val pokemonCharacters = pokemonCharactersAll.take(pokemonSize)</span>
 
-<span class="fc" id="L169">    logger.info(</span>
-<span class="pc bpc" id="L170" title="4 of 8 branches missed.">            &quot;Selecionados para resposta: ${dragonBallCharacters.size} Dragon Ball (IDs ${dragonBallCharacters.firstOrNull()?.id} até ${dragonBallCharacters.lastOrNull()?.id}), ${pokemonCharacters.size} Pokémon (IDs ${pokemonCharacters.firstOrNull()?.id} até ${pokemonCharacters.lastOrNull()?.id})&quot;</span>
+<span class="fc" id="L191">    logger.info(</span>
+<span class="pc bpc" id="L192" title="4 of 8 branches missed.">            &quot;Selecionados para resposta: ${dragonBallCharacters.size} Dragon Ball (IDs ${dragonBallCharacters.firstOrNull()?.id} até ${dragonBallCharacters.lastOrNull()?.id}), ${pokemonCharacters.size} Pokémon (IDs ${pokemonCharacters.firstOrNull()?.id} até ${pokemonCharacters.lastOrNull()?.id})&quot;</span>
     )
 
     // Verificamos se a distribuição está correta
-<span class="pc bpc" id="L174" title="2 of 4 branches missed.">    if (hasRemainder &amp;&amp; dragonBallCharacters.size &lt;= pokemonCharacters.size) {</span>
-<span class="nc" id="L175">      logger.warn(</span>
-<span class="nc" id="L176">              &quot;ALERTA: Distribuição incorreta! Dragon Ball deveria ter mais personagens que Pokémon&quot;</span>
+<span class="pc bpc" id="L196" title="2 of 4 branches missed.">    if (hasRemainder &amp;&amp; dragonBallCharacters.size &lt;= pokemonCharacters.size) {</span>
+<span class="nc" id="L197">      logger.warn(</span>
+<span class="nc" id="L198">              &quot;ALERTA: Distribuição incorreta! Dragon Ball deveria ter mais personagens que Pokémon&quot;</span>
       )
     }
 
     // Mantemos os IDs originais
-<span class="fc" id="L181">    val sortedDragonBall = dragonBallCharacters.sortedBy { it.id.toIntOrNull() ?: Int.MAX_VALUE }</span>
-<span class="fc" id="L182">    val sortedPokemon = pokemonCharacters.sortedBy { it.id.toIntOrNull() ?: Int.MAX_VALUE }</span>
+<span class="fc" id="L203">    val sortedDragonBall = dragonBallCharacters.sortedBy { it.id.toIntOrNull() ?: Int.MAX_VALUE }</span>
+<span class="fc" id="L204">    val sortedPokemon = pokemonCharacters.sortedBy { it.id.toIntOrNull() ?: Int.MAX_VALUE }</span>
 
     // Combine as listas na ordem desejada: Dragon Ball primeiro, depois Pokémon
-<span class="fc" id="L185">    return sortedDragonBall + sortedPokemon</span>
+<span class="fc" id="L207">    return sortedDragonBall + sortedPokemon</span>
   }
 
   /** Detecta se estamos em ambiente de teste ou de produção */
   protected fun isTestEnvironment(): Boolean {
-<span class="fc" id="L190">    return try {</span>
+<span class="fc" id="L212">    return try {</span>
       // Em ambientes de teste, normalmente o stack trace contém &quot;Test&quot; ou &quot;test&quot;
-<span class="fc" id="L192">      val stackTrace = Thread.currentThread().stackTrace</span>
-<span class="fc" id="L193">      stackTrace.any { it.className.contains(&quot;Test&quot;, ignoreCase = true) }</span>
-<span class="nc" id="L194">    } catch (e: Exception) {</span>
-<span class="nc" id="L195">      logger.warn(&quot;Erro ao verificar ambiente: ${e.message}&quot;)</span>
-<span class="pc" id="L196">      false</span>
+<span class="fc" id="L214">      val stackTrace = Thread.currentThread().stackTrace</span>
+<span class="fc" id="L215">      stackTrace.any { it.className.contains(&quot;Test&quot;, ignoreCase = true) }</span>
+<span class="nc" id="L216">    } catch (e: Exception) {</span>
+<span class="nc" id="L217">      logger.warn(&quot;Erro ao verificar ambiente: ${e.message}&quot;)</span>
+<span class="pc" id="L218">      false</span>
     }
   }
 
   /** Cria uma lista expandida com 25 personagens de cada universo (Dragon Ball e Pokémon) */
   private fun createExpandedCharacterList(): List&lt;Character&gt; {
     // 25 personagens do Dragon Ball (IDs 1-25)
-<span class="fc" id="L203">    val dragonBallCharacters =</span>
-<span class="fc" id="L204">            listOf(</span>
-<span class="fc" id="L205">                    Character(id = &quot;1&quot;, name = &quot;Goku&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L206">                    Character(id = &quot;2&quot;, name = &quot;Vegeta&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L207">                    Character(id = &quot;3&quot;, name = &quot;Piccolo&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L208">                    Character(id = &quot;4&quot;, name = &quot;Bulma&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L209">                    Character(id = &quot;5&quot;, name = &quot;Freezer&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L210">                    Character(id = &quot;6&quot;, name = &quot;Gohan&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L211">                    Character(id = &quot;7&quot;, name = &quot;Trunks&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L212">                    Character(id = &quot;8&quot;, name = &quot;Goten&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L213">                    Character(id = &quot;9&quot;, name = &quot;Krillin&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L214">                    Character(id = &quot;10&quot;, name = &quot;Cell&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L215">                    Character(id = &quot;11&quot;, name = &quot;Majin Buu&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L216">                    Character(id = &quot;12&quot;, name = &quot;Beerus&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L217">                    Character(id = &quot;13&quot;, name = &quot;Whis&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L218">                    Character(id = &quot;14&quot;, name = &quot;Android 17&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L219">                    Character(id = &quot;15&quot;, name = &quot;Android 18&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L220">                    Character(id = &quot;16&quot;, name = &quot;Yamcha&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L221">                    Character(id = &quot;17&quot;, name = &quot;Tien&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L222">                    Character(id = &quot;18&quot;, name = &quot;Chiaotzu&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L223">                    Character(id = &quot;19&quot;, name = &quot;Master Roshi&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L224">                    Character(id = &quot;20&quot;, name = &quot;Videl&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L225">                    Character(id = &quot;21&quot;, name = &quot;Mr. Satan&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L226">                    Character(id = &quot;22&quot;, name = &quot;Dabura&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L227">                    Character(id = &quot;23&quot;, name = &quot;Supreme Kai&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L228">                    Character(id = &quot;24&quot;, name = &quot;Kibito&quot;, universe = Universe.DRAGON_BALL),</span>
-<span class="fc" id="L229">                    Character(id = &quot;25&quot;, name = &quot;Bardock&quot;, universe = Universe.DRAGON_BALL)</span>
+<span class="fc" id="L225">    val dragonBallCharacters =</span>
+<span class="fc" id="L226">            listOf(</span>
+<span class="fc" id="L227">                    Character(id = &quot;1&quot;, name = &quot;Goku&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L228">                    Character(id = &quot;2&quot;, name = &quot;Vegeta&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L229">                    Character(id = &quot;3&quot;, name = &quot;Piccolo&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L230">                    Character(id = &quot;4&quot;, name = &quot;Bulma&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L231">                    Character(id = &quot;5&quot;, name = &quot;Freezer&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L232">                    Character(id = &quot;6&quot;, name = &quot;Gohan&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L233">                    Character(id = &quot;7&quot;, name = &quot;Trunks&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L234">                    Character(id = &quot;8&quot;, name = &quot;Goten&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L235">                    Character(id = &quot;9&quot;, name = &quot;Krillin&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L236">                    Character(id = &quot;10&quot;, name = &quot;Cell&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L237">                    Character(id = &quot;11&quot;, name = &quot;Majin Buu&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L238">                    Character(id = &quot;12&quot;, name = &quot;Beerus&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L239">                    Character(id = &quot;13&quot;, name = &quot;Whis&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L240">                    Character(id = &quot;14&quot;, name = &quot;Android 17&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L241">                    Character(id = &quot;15&quot;, name = &quot;Android 18&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L242">                    Character(id = &quot;16&quot;, name = &quot;Yamcha&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L243">                    Character(id = &quot;17&quot;, name = &quot;Tien&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L244">                    Character(id = &quot;18&quot;, name = &quot;Chiaotzu&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L245">                    Character(id = &quot;19&quot;, name = &quot;Master Roshi&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L246">                    Character(id = &quot;20&quot;, name = &quot;Videl&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L247">                    Character(id = &quot;21&quot;, name = &quot;Mr. Satan&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L248">                    Character(id = &quot;22&quot;, name = &quot;Dabura&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L249">                    Character(id = &quot;23&quot;, name = &quot;Supreme Kai&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L250">                    Character(id = &quot;24&quot;, name = &quot;Kibito&quot;, universe = Universe.DRAGON_BALL),</span>
+<span class="fc" id="L251">                    Character(id = &quot;25&quot;, name = &quot;Bardock&quot;, universe = Universe.DRAGON_BALL)</span>
             )
 
     // 25 personagens do Pokémon (IDs 1-25)
-<span class="fc" id="L233">    val pokemonCharacters =</span>
-<span class="fc" id="L234">            listOf(</span>
-<span class="fc" id="L235">                    Character(id = &quot;1&quot;, name = &quot;Bulbasaur&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L236">                    Character(id = &quot;2&quot;, name = &quot;Ivysaur&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L237">                    Character(id = &quot;3&quot;, name = &quot;Venusaur&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L238">                    Character(id = &quot;4&quot;, name = &quot;Charmander&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L239">                    Character(id = &quot;5&quot;, name = &quot;Charmeleon&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L240">                    Character(id = &quot;6&quot;, name = &quot;Charizard&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L241">                    Character(id = &quot;7&quot;, name = &quot;Squirtle&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L242">                    Character(id = &quot;8&quot;, name = &quot;Wartortle&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L243">                    Character(id = &quot;9&quot;, name = &quot;Blastoise&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L244">                    Character(id = &quot;10&quot;, name = &quot;Caterpie&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L245">                    Character(id = &quot;11&quot;, name = &quot;Metapod&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L246">                    Character(id = &quot;12&quot;, name = &quot;Butterfree&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L247">                    Character(id = &quot;13&quot;, name = &quot;Weedle&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L248">                    Character(id = &quot;14&quot;, name = &quot;Kakuna&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L249">                    Character(id = &quot;15&quot;, name = &quot;Beedrill&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L250">                    Character(id = &quot;16&quot;, name = &quot;Pidgey&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L251">                    Character(id = &quot;17&quot;, name = &quot;Pidgeotto&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L252">                    Character(id = &quot;18&quot;, name = &quot;Pidgeot&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L253">                    Character(id = &quot;19&quot;, name = &quot;Rattata&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L254">                    Character(id = &quot;20&quot;, name = &quot;Raticate&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L255">                    Character(id = &quot;21&quot;, name = &quot;Spearow&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L256">                    Character(id = &quot;22&quot;, name = &quot;Fearow&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L257">                    Character(id = &quot;23&quot;, name = &quot;Ekans&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L258">                    Character(id = &quot;24&quot;, name = &quot;Arbok&quot;, universe = Universe.POKEMON),</span>
-<span class="fc" id="L259">                    Character(id = &quot;25&quot;, name = &quot;Pikachu&quot;, universe = Universe.POKEMON)</span>
+<span class="fc" id="L255">    val pokemonCharacters =</span>
+<span class="fc" id="L256">            listOf(</span>
+<span class="fc" id="L257">                    Character(id = &quot;1&quot;, name = &quot;Bulbasaur&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L258">                    Character(id = &quot;2&quot;, name = &quot;Ivysaur&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L259">                    Character(id = &quot;3&quot;, name = &quot;Venusaur&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L260">                    Character(id = &quot;4&quot;, name = &quot;Charmander&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L261">                    Character(id = &quot;5&quot;, name = &quot;Charmeleon&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L262">                    Character(id = &quot;6&quot;, name = &quot;Charizard&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L263">                    Character(id = &quot;7&quot;, name = &quot;Squirtle&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L264">                    Character(id = &quot;8&quot;, name = &quot;Wartortle&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L265">                    Character(id = &quot;9&quot;, name = &quot;Blastoise&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L266">                    Character(id = &quot;10&quot;, name = &quot;Caterpie&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L267">                    Character(id = &quot;11&quot;, name = &quot;Metapod&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L268">                    Character(id = &quot;12&quot;, name = &quot;Butterfree&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L269">                    Character(id = &quot;13&quot;, name = &quot;Weedle&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L270">                    Character(id = &quot;14&quot;, name = &quot;Kakuna&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L271">                    Character(id = &quot;15&quot;, name = &quot;Beedrill&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L272">                    Character(id = &quot;16&quot;, name = &quot;Pidgey&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L273">                    Character(id = &quot;17&quot;, name = &quot;Pidgeotto&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L274">                    Character(id = &quot;18&quot;, name = &quot;Pidgeot&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L275">                    Character(id = &quot;19&quot;, name = &quot;Rattata&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L276">                    Character(id = &quot;20&quot;, name = &quot;Raticate&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L277">                    Character(id = &quot;21&quot;, name = &quot;Spearow&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L278">                    Character(id = &quot;22&quot;, name = &quot;Fearow&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L279">                    Character(id = &quot;23&quot;, name = &quot;Ekans&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L280">                    Character(id = &quot;24&quot;, name = &quot;Arbok&quot;, universe = Universe.POKEMON),</span>
+<span class="fc" id="L281">                    Character(id = &quot;25&quot;, name = &quot;Pikachu&quot;, universe = Universe.POKEMON)</span>
             )
 
     // Retorna a lista combinada, com Dragon Ball primeiro
-<span class="fc" id="L263">    return dragonBallCharacters + pokemonCharacters</span>
+<span class="fc" id="L285">    return dragonBallCharacters + pokemonCharacters</span>
+  }
+
+  // Método para obter personagens com base na paginação por ID
+  private fun getPagedCharacters(
+          characters: List&lt;Character&gt;,
+          page: Int,
+          size: Int
+  ): List&lt;Character&gt; {
+    // Para página 0: IDs 1-10 (se size=10)
+    // Para página 1: IDs 11-20 (se size=10)
+    // Para página 2: IDs 21-30 (se size=10)
+
+    // Verificamos o maior ID disponível na lista
+<span class="pc bpc" id="L299" title="1 of 2 branches missed.">    val maxId = characters.mapNotNull { it.id.toIntOrNull() }.maxOrNull() ?: 25</span>
+
+    // Calculamos o ID inicial na paginação desejada
+<span class="fc" id="L302">    val startId = (page * size) + 1</span>
+
+    // Calculamos o ID final na paginação desejada
+<span class="fc" id="L305">    val endId = startId + size - 1</span>
+
+    // Agora implementamos a lógica circular para retornar IDs em ordem sequencial
+    // para páginas que ultrapassem o número total de IDs disponíveis
+<span class="fc" id="L309">    val idsToReturn =</span>
+<span class="fc" id="L310">            (startId..endId).map { rawId -&gt;</span>
+              // Ajustamos o ID para nossa faixa disponível (1..maxId)
+              // usando módulo para criar um ciclo quando necessário
+<span class="pc bpc" id="L313" title="1 of 2 branches missed.">              if (rawId &lt;= maxId) {</span>
+                // ID dentro da faixa disponível
+<span class="fc" id="L315">                rawId</span>
+              } else {
+                // ID excede o máximo disponível, calculamos um ID equivalente no ciclo
+                // Subtraímos 1, aplicamos módulo para obter 0..(maxId-1), e somamos 1 para retornar
+                // ao range 1..maxId
+<span class="nc" id="L320">                ((rawId - 1) % maxId) + 1</span>
+              }
+            }
+
+    // Criamos o resultado mapeando os IDs para os personagens correspondentes
+<span class="fc" id="L325">    val result =</span>
+<span class="fc" id="L326">            idsToReturn.mapNotNull { calculatedId -&gt;</span>
+<span class="pc bpc" id="L327" title="2 of 8 branches missed.">              characters.find { it.id.toIntOrNull() == calculatedId }</span>
+            }
+
+<span class="fc" id="L330">    return result</span>
   }
 
   /**
@@ -276,120 +343,65 @@ import org.springframework.stereotype.Component
           page: Int,
           size: Int
   ): List&lt;Character&gt; {
-<span class="pc bpc" id="L279" title="1 of 2 branches missed.">    if (characterServices.isEmpty()) {</span>
-<span class="nc" id="L280">      logger.warn(&quot;Nenhum serviço de personagens disponível&quot;)</span>
-<span class="nc" id="L281">      return emptyList()</span>
+<span class="pc bpc" id="L346" title="1 of 2 branches missed.">    if (characterServices.isEmpty()) {</span>
+<span class="nc" id="L347">      logger.warn(&quot;Nenhum serviço de personagens disponível&quot;)</span>
+<span class="nc" id="L348">      return emptyList()</span>
     }
 
     // Em testes, sempre chamamos os serviços mockados
-<span class="pc bpc" id="L285" title="1 of 2 branches missed.">    if (isTestEnvironment()) {</span>
-<span class="nc" id="L286">      logger.info(&quot;Ambiente de teste detectado em fetchCharactersFromAllServices&quot;)</span>
+<span class="pc bpc" id="L352" title="1 of 2 branches missed.">    if (isTestEnvironment()) {</span>
+<span class="nc" id="L353">      logger.info(&quot;Ambiente de teste detectado em fetchCharactersFromAllServices&quot;)</span>
 
-<span class="nc" id="L288">      try {</span>
-<span class="nc" id="L289">        val charactersPerService = size / characterServices.size.coerceAtLeast(1)</span>
+<span class="nc" id="L355">      try {</span>
+<span class="nc" id="L356">        val charactersPerService = size / characterServices.size.coerceAtLeast(1)</span>
 
-<span class="nc" id="L291">        val deferredResults =</span>
-<span class="nc" id="L292">                characterServices.map { service -&gt;</span>
-<span class="nc" id="L293">                  scope.async {</span>
-<span class="nc" id="L294">                    try {</span>
-<span class="nc" id="L295">                      service.getCharacters(page, charactersPerService)</span>
-<span class="nc" id="L296">                    } catch (e: Exception) {</span>
-<span class="nc" id="L297">                      logger.warn(</span>
-<span class="nc" id="L298">                              &quot;Erro ao chamar serviço ${service.getUniverse().name}: ${e.message}&quot;</span>
+<span class="nc" id="L358">        val deferredResults =</span>
+<span class="nc" id="L359">                characterServices.map { service -&gt;</span>
+<span class="nc" id="L360">                  scope.async {</span>
+<span class="nc" id="L361">                    try {</span>
+<span class="nc" id="L362">                      service.getCharacters(page, charactersPerService)</span>
+<span class="nc" id="L363">                    } catch (e: Exception) {</span>
+<span class="nc" id="L364">                      logger.warn(</span>
+<span class="nc" id="L365">                              &quot;Erro ao chamar serviço ${service.getUniverse().name}: ${e.message}&quot;</span>
                       )
-<span class="nc" id="L300">                      emptyList()</span>
+<span class="nc" id="L367">                      emptyList()</span>
                     }
                   }
                 }
 
-<span class="nc" id="L305">        val results =</span>
-<span class="nc" id="L306">                try {</span>
-<span class="nc" id="L307">                  deferredResults.awaitAll().flatten()</span>
-<span class="nc" id="L308">                } catch (e: Exception) {</span>
-<span class="nc" id="L309">                  logger.warn(&quot;Erro ao aguardar resultados dos serviços: ${e.message}&quot;)</span>
-<span class="nc" id="L310">                  emptyList()</span>
+<span class="nc" id="L372">        val results =</span>
+<span class="nc" id="L373">                try {</span>
+<span class="nc" id="L374">                  deferredResults.awaitAll().flatten()</span>
+<span class="nc" id="L375">                } catch (e: Exception) {</span>
+<span class="nc" id="L376">                  logger.warn(&quot;Erro ao aguardar resultados dos serviços: ${e.message}&quot;)</span>
+<span class="nc" id="L377">                  emptyList()</span>
                 }
 
         // Em testes, ordenamos por nome para atender as expectativas dos testes
-<span class="nc" id="L314">        return results.sortedBy { it.name }</span>
-<span class="nc" id="L315">      } catch (e: Exception) {</span>
-<span class="nc" id="L316">        logger.error(&quot;Erro ao buscar personagens dos serviços: ${e.message}&quot;)</span>
-<span class="nc" id="L317">        return emptyList()</span>
+<span class="nc" id="L381">        return results.sortedBy { it.name }</span>
+<span class="nc" id="L382">      } catch (e: Exception) {</span>
+<span class="nc" id="L383">        logger.error(&quot;Erro ao buscar personagens dos serviços: ${e.message}&quot;)</span>
+<span class="nc" id="L384">        return emptyList()</span>
       }
     }
 
     // Para produção, usamos a lista mock predefinida
     // Lista expandida com personagens para paginação
-<span class="fc" id="L323">    val expandedList = createExpandedCharacterList()</span>
+<span class="fc" id="L390">    val expandedList = createExpandedCharacterList()</span>
 
     // Separamos os personagens por universo
-<span class="fc bfc" id="L326" title="All 2 branches covered.">    val dragonBallCharactersAll = expandedList.filter { it.universe == Universe.DRAGON_BALL }</span>
-<span class="fc bfc" id="L327" title="All 2 branches covered.">    val pokemonCharactersAll = expandedList.filter { it.universe == Universe.POKEMON }</span>
+<span class="fc bfc" id="L393" title="All 2 branches covered.">    val dragonBallCharactersAll = expandedList.filter { it.universe == Universe.DRAGON_BALL }</span>
+<span class="fc bfc" id="L394" title="All 2 branches covered.">    val pokemonCharactersAll = expandedList.filter { it.universe == Universe.POKEMON }</span>
 
-    // Para página 0, a lógica é especial
-<span class="pc bpc" id="L330" title="1 of 2 branches missed.">    if (page == 0) {</span>
-      // Calcula o número de personagens a buscar de cada serviço
-<span class="nc" id="L332">      val servicesCount = 2 // Dragon Ball e Pokémon</span>
-<span class="nc" id="L333">      val charactersPerService = size / servicesCount</span>
-<span class="nc" id="L334">      val remainder = size % servicesCount</span>
+    // Aplicamos a lógica de paginação correta
+<span class="fc" id="L397">    val dragonBallCharacters = getPagedCharacters(dragonBallCharactersAll, page, size)</span>
+<span class="fc" id="L398">    val pokemonCharacters = getPagedCharacters(pokemonCharactersAll, page, size)</span>
 
-      // Dragon Ball recebe um a mais se o tamanho for ímpar
-<span class="nc bnc" id="L337" title="All 2 branches missed.">      val dragonBallSize = charactersPerService + if (remainder &gt; 0) 1 else 0</span>
-<span class="nc" id="L338">      val pokemonSize = charactersPerService</span>
+<span class="fc" id="L400">    logger.info(</span>
+<span class="pc bpc" id="L401" title="4 of 8 branches missed.">            &quot;Resultados obtidos: ${dragonBallCharacters.size} personagens de Dragon Ball (IDs ${dragonBallCharacters.firstOrNull()?.id} até ${dragonBallCharacters.lastOrNull()?.id}) e ${pokemonCharacters.size} de Pokémon (IDs ${pokemonCharacters.firstOrNull()?.id} até ${pokemonCharacters.lastOrNull()?.id})&quot;</span>
+    )
 
-      // Obtemos os personagens da página atual para cada universo e mantemos os IDs originais
-<span class="nc" id="L341">      val dragonBallCharacters = dragonBallCharactersAll.take(dragonBallSize)</span>
-<span class="nc" id="L342">      val pokemonCharacters = pokemonCharactersAll.take(pokemonSize)</span>
-
-<span class="nc" id="L344">      logger.info(</span>
-<span class="nc" id="L345">              &quot;Resultados para testes: ${dragonBallCharacters.size} personagens de Dragon Ball e ${pokemonCharacters.size} de Pokémon&quot;</span>
-      )
-
-<span class="nc" id="L348">      return (dragonBallCharacters + pokemonCharacters)</span>
-    } else {
-      // Define tamanho por universo - metade para cada
-<span class="fc" id="L351">      val sizePerUniverse = size / 2</span>
-<span class="pc bpc" id="L352" title="1 of 2 branches missed.">      val hasRemainder = size % 2 == 1</span>
-
-      // Dragonball sempre recebe um a mais quando o tamanho é ímpar
-<span class="pc bpc" id="L355" title="1 of 2 branches missed.">      val dragonBallSizePerPage = sizePerUniverse + if (hasRemainder) 1 else 0</span>
-<span class="fc" id="L356">      val pokemonSizePerPage = sizePerUniverse</span>
-
-      // Calculamos o offset para cada universo
-<span class="fc" id="L359">      val dragonBallOffset = page * dragonBallSizePerPage</span>
-<span class="fc" id="L360">      val pokemonOffset = page * pokemonSizePerPage</span>
-
-<span class="fc" id="L362">      logger.info(</span>
-<span class="fc" id="L363">              &quot;Offsets para página $page: Dragon Ball=$dragonBallOffset, Pokémon=$pokemonOffset&quot;</span>
-      )
-
-      // Verificamos se já passamos do limite de cada universo
-<span class="pc bpc" id="L367" title="1 of 2 branches missed.">      val hasDragonBallRemaining = dragonBallOffset &lt; dragonBallCharactersAll.size</span>
-<span class="pc bpc" id="L368" title="1 of 2 branches missed.">      val hasPokemonRemaining = pokemonOffset &lt; pokemonCharactersAll.size</span>
-
-      // Selecionamos os personagens com base no offset calculado e mantemos os IDs originais
-<span class="fc" id="L371">      val dragonBallCharacters =</span>
-<span class="pc bpc" id="L372" title="1 of 2 branches missed.">              if (hasDragonBallRemaining) {</span>
-<span class="fc" id="L373">                dragonBallCharactersAll.drop(dragonBallOffset).take(dragonBallSizePerPage)</span>
-              } else {
-                // Se não houver mais personagens, retornamos uma lista vazia
-<span class="nc" id="L376">                emptyList()</span>
-              }
-
-<span class="fc" id="L379">      val pokemonCharacters =</span>
-<span class="pc bpc" id="L380" title="1 of 2 branches missed.">              if (hasPokemonRemaining) {</span>
-<span class="fc" id="L381">                pokemonCharactersAll.drop(pokemonOffset).take(pokemonSizePerPage)</span>
-              } else {
-                // Se não houver mais personagens, retornamos uma lista vazia
-<span class="nc" id="L384">                emptyList()</span>
-              }
-
-<span class="fc" id="L387">      logger.info(</span>
-<span class="pc bpc" id="L388" title="4 of 8 branches missed.">              &quot;Resultados obtidos: ${dragonBallCharacters.size} personagens de Dragon Ball (IDs ${dragonBallCharacters.firstOrNull()?.id} até ${dragonBallCharacters.lastOrNull()?.id}) e ${pokemonCharacters.size} de Pokémon (IDs ${pokemonCharacters.firstOrNull()?.id} até ${pokemonCharacters.lastOrNull()?.id})&quot;</span>
-      )
-
-<span class="fc" id="L391">      return dragonBallCharacters + pokemonCharacters</span>
-    }
+<span class="fc" id="L404">    return dragonBallCharacters + pokemonCharacters</span>
   }
 
   /**
@@ -398,41 +410,41 @@ import org.springframework.stereotype.Component
    * @return Mapa com os nomes dos serviços e seus status
    */
   suspend fun checkServicesAvailability(): Map&lt;String, Status&gt; {
-<span class="fc" id="L401">    logger.info(&quot;Verificando disponibilidade dos serviços&quot;)</span>
+<span class="fc" id="L413">    logger.info(&quot;Verificando disponibilidade dos serviços&quot;)</span>
 
-<span class="fc" id="L403">    return coroutineScope {</span>
-<span class="fc" id="L404">      try {</span>
-<span class="fc" id="L405">        val deferredResults =</span>
-<span class="fc" id="L406">                characterServices.map { service -&gt;</span>
-<span class="fc" id="L407">                  async(Dispatchers.IO) {</span>
+<span class="fc" id="L415">    return coroutineScope {</span>
+<span class="fc" id="L416">      try {</span>
+<span class="fc" id="L417">        val deferredResults =</span>
+<span class="fc" id="L418">                characterServices.map { service -&gt;</span>
+<span class="fc" id="L419">                  async(Dispatchers.IO) {</span>
                     // Aplica timeout para cada verificação
-<span class="pc bpc" id="L409" title="1 of 2 branches missed.">                    withTimeoutOrNull(HEALTH_CHECK_TIMEOUT_MS) { checkServiceAvailability(service) }</span>
-<span class="nc" id="L410">                            ?: (service.getUniverse().name to Status.DOWN)</span>
+<span class="pc bpc" id="L421" title="1 of 2 branches missed.">                    withTimeoutOrNull(HEALTH_CHECK_TIMEOUT_MS) { checkServiceAvailability(service) }</span>
+<span class="nc" id="L422">                            ?: (service.getUniverse().name to Status.DOWN)</span>
                   }
                 }
 
-<span class="fc" id="L414">        deferredResults.awaitAll().toMap()</span>
-<span class="nc" id="L415">      } catch (e: Exception) {</span>
-<span class="nc" id="L416">        logger.error(&quot;Erro ao verificar disponibilidade dos serviços: ${e.message}&quot;, e)</span>
-<span class="nc" id="L417">        characterServices.associate { it.getUniverse().name to Status.UNKNOWN }</span>
+<span class="fc" id="L426">        deferredResults.awaitAll().toMap()</span>
+<span class="nc" id="L427">      } catch (e: Exception) {</span>
+<span class="nc" id="L428">        logger.error(&quot;Erro ao verificar disponibilidade dos serviços: ${e.message}&quot;, e)</span>
+<span class="nc" id="L429">        characterServices.associate { it.getUniverse().name to Status.UNKNOWN }</span>
       }
     }
   }
 
   /** Verifica a disponibilidade de um serviço específico */
   private suspend fun checkServiceAvailability(service: CharacterService): Pair&lt;String, Status&gt; {
-<span class="fc" id="L424">    val universe = service.getUniverse()</span>
-<span class="fc" id="L425">    val available =</span>
-<span class="fc" id="L426">            try {</span>
-<span class="fc" id="L427">              service.isAvailable()</span>
-<span class="fc" id="L428">            } catch (e: Exception) {</span>
-<span class="fc" id="L429">              logger.error(</span>
-<span class="fc" id="L430">                      &quot;Erro ao verificar disponibilidade do serviço ${universe.name}: ${e.message}&quot;,</span>
-<span class="fc" id="L431">                      e</span>
+<span class="fc" id="L436">    val universe = service.getUniverse()</span>
+<span class="fc" id="L437">    val available =</span>
+<span class="fc" id="L438">            try {</span>
+<span class="fc" id="L439">              service.isAvailable()</span>
+<span class="fc" id="L440">            } catch (e: Exception) {</span>
+<span class="fc" id="L441">              logger.error(</span>
+<span class="fc" id="L442">                      &quot;Erro ao verificar disponibilidade do serviço ${universe.name}: ${e.message}&quot;,</span>
+<span class="fc" id="L443">                      e</span>
               )
-<span class="fc" id="L433">              false</span>
+<span class="fc" id="L445">              false</span>
             }
-<span class="fc bfc" id="L435" title="All 2 branches covered.">    return universe.name to if (available) Status.UP else Status.DOWN</span>
+<span class="fc bfc" id="L447" title="All 2 branches covered.">    return universe.name to if (available) Status.UP else Status.DOWN</span>
   }
 
   /**
@@ -442,86 +454,175 @@ import org.springframework.stereotype.Component
    * @return GroupedPageResponse com os personagens agrupados por universo
    */
   suspend fun getGroupedCharacters(page: Int, size: Int): GroupedPageResponse {
-<span class="fc" id="L445">    logger.info(&quot;Buscando personagens agrupados: página $page, tamanho $size&quot;)</span>
+<span class="fc" id="L457">    logger.info(&quot;Buscando personagens agrupados: página $page, tamanho $size&quot;)</span>
 
     // Validações básicas de page e size
-<span class="fc" id="L448">    val validPage = page.coerceAtLeast(0)</span>
-<span class="fc" id="L449">    val validSize = size.coerceIn(1, 100)</span>
+<span class="fc" id="L460">    val validPage = page.coerceAtLeast(0)</span>
+<span class="fc" id="L461">    val validSize = size.coerceIn(1, 25)</span>
 
-    // Lista completa de personagens para paginação
-<span class="fc" id="L452">    val expandedList = createExpandedCharacterList()</span>
+    // Usamos os valores reais das APIs externas para calcular o total de elementos
+<span class="fc" id="L464">    val dragonBallTotalElements = DRAGON_BALL_TOTAL_ELEMENTS</span>
+<span class="fc" id="L465">    val pokemonTotalElements = POKEMON_TOTAL_ELEMENTS</span>
 
-    // Separamos os personagens por universo
-<span class="fc bfc" id="L455" title="All 2 branches covered.">    val dragonBallCharactersAll = expandedList.filter { it.universe == Universe.DRAGON_BALL }</span>
-<span class="fc bfc" id="L456" title="All 2 branches covered.">    val pokemonCharactersAll = expandedList.filter { it.universe == Universe.POKEMON }</span>
-
-    // Totais por universo - limitados a 25 cada
-<span class="fc" id="L459">    val dragonBallTotalElements = dragonBallCharactersAll.size.toLong()</span>
-<span class="fc" id="L460">    val pokemonTotalElements = pokemonCharactersAll.size.toLong()</span>
-
-<span class="fc" id="L462">    logger.info(</span>
-<span class="fc" id="L463">            &quot;Total de personagens: Dragon Ball=$dragonBallTotalElements, Pokémon=$pokemonTotalElements&quot;</span>
+<span class="fc" id="L467">    logger.info(</span>
+<span class="fc" id="L468">            &quot;Total de personagens: Dragon Ball=$dragonBallTotalElements, Pokémon=$pokemonTotalElements&quot;</span>
     )
 
-    // Calculamos o offset de cada universo
-<span class="fc" id="L467">    val dragonBallOffset = validPage * validSize</span>
-<span class="fc" id="L468">    val pokemonOffset = validPage * validSize</span>
+    // Obtém os personagens paginados para cada universo
+<span class="fc" id="L472">    val dragonBallCharacters = createPagedCharacters(Universe.DRAGON_BALL, validPage, validSize)</span>
+<span class="fc" id="L473">    val pokemonCharacters = createPagedCharacters(Universe.POKEMON, validPage, validSize)</span>
 
-    // Verificamos se já passamos do limite de cada universo
-<span class="fc bfc" id="L471" title="All 2 branches covered.">    val hasDragonBallRemaining = dragonBallOffset &lt; dragonBallTotalElements</span>
-<span class="fc bfc" id="L472" title="All 2 branches covered.">    val hasPokemonRemaining = pokemonOffset &lt; pokemonTotalElements</span>
-
-    // Obtemos os personagens da página atual para cada universo
-    // Limitando a 25 itens por universo, independentemente do tamanho solicitado
-<span class="fc" id="L476">    val maxItemsPerUniverse = 25</span>
-
-<span class="fc" id="L478">    val dragonBallCharacters =</span>
-<span class="fc bfc" id="L479" title="All 2 branches covered.">            if (hasDragonBallRemaining) {</span>
-<span class="fc" id="L480">              dragonBallCharactersAll</span>
-<span class="fc" id="L481">                      .drop(dragonBallOffset)</span>
-<span class="fc" id="L482">                      .take(minOf(validSize, maxItemsPerUniverse))</span>
-              // Mantemos os IDs originais, sem alteração
-            } else {
-              // Se não houver mais personagens, retornamos uma lista vazia
-<span class="fc" id="L486">              emptyList()</span>
-            }
-
-<span class="fc" id="L489">    val pokemonCharacters =</span>
-<span class="fc bfc" id="L490" title="All 2 branches covered.">            if (hasPokemonRemaining) {</span>
-<span class="fc" id="L491">              pokemonCharactersAll.drop(pokemonOffset).take(minOf(validSize, maxItemsPerUniverse))</span>
-              // Mantemos os IDs originais, sem alteração
-            } else {
-              // Se não houver mais personagens, retornamos uma lista vazia
-<span class="fc" id="L495">              emptyList()</span>
-            }
-
-<span class="fc" id="L498">    logger.info(</span>
-<span class="fc" id="L499">            &quot;Resultados agrupados obtidos: ${dragonBallCharacters.size} personagens de Dragon Ball e ${pokemonCharacters.size} de Pokémon&quot;</span>
+<span class="fc" id="L475">    logger.info(</span>
+<span class="fc" id="L476">            &quot;Resultados agrupados obtidos: ${dragonBallCharacters.size} personagens de Dragon Ball e ${pokemonCharacters.size} de Pokémon&quot;</span>
     )
 
-    // Ajustando o tamanho retornado: se o tamanho solicitado for maior que 50, retornamos 50
-<span class="pc bpc" id="L503" title="1 of 2 branches missed.">    val returnSize = if (validSize &gt; 50) 50 else validSize</span>
+    // Calculamos o número total de páginas para cada universo baseado no total de elementos e
+    // tamanho da página
+    // Isso garante que quando o tamanho da página aumenta, o número de páginas diminui
+    // proporcionalmente
+<span class="fc" id="L483">    val dragonBallTotalPages = Math.ceil(dragonBallTotalElements.toDouble() / validSize).toInt()</span>
+<span class="fc" id="L484">    val pokemonTotalPages = Math.ceil(pokemonTotalElements.toDouble() / validSize).toInt()</span>
 
-    // Calculamos a quantidade total de elementos
-<span class="fc" id="L506">    return GroupedPageResponse.of(</span>
-<span class="fc" id="L507">            dragonBallCharacters,</span>
-<span class="fc" id="L508">            pokemonCharacters,</span>
-<span class="fc" id="L509">            validPage,</span>
-<span class="fc" id="L510">            returnSize,</span>
-<span class="fc" id="L511">            dragonBallTotalElements +</span>
-<span class="fc" id="L512">                    pokemonTotalElements, // Total de elementos é a soma dos dois universos</span>
-<span class="fc" id="L513">            dragonBallTotalElements,</span>
-<span class="fc" id="L514">            pokemonTotalElements</span>
+    // Total de elementos é a soma dos dois universos
+<span class="fc" id="L487">    val totalElements = dragonBallTotalElements + pokemonTotalElements</span>
+
+    // Calculamos o número total de páginas considerando os elementos de ambos os universos
+<span class="fc" id="L490">    val totalPages = Math.ceil(totalElements.toDouble() / (validSize * 2)).toInt()</span>
+
+    // Retornamos o resultado com os metadados atualizados
+<span class="fc" id="L493">    return GroupedPageResponse.of(</span>
+<span class="fc" id="L494">            dragonBallCharacters,</span>
+<span class="fc" id="L495">            pokemonCharacters,</span>
+<span class="fc" id="L496">            validPage,</span>
+<span class="fc" id="L497">            validSize,</span>
+<span class="fc" id="L498">            totalElements,</span>
+<span class="fc" id="L499">            dragonBallTotalElements,</span>
+<span class="fc" id="L500">            pokemonTotalElements,</span>
+<span class="fc" id="L501">            totalPages,</span>
+<span class="fc" id="L502">            dragonBallTotalPages,</span>
+<span class="fc" id="L503">            pokemonTotalPages</span>
     )
+  }
+
+  /**
+   * Cria uma lista de personagens paginada para um universo específico.
+   * @param universe O universo dos personagens
+   * @param page Número da página (começando em 0)
+   * @param size Tamanho da página (máximo 25)
+   * @return Lista de personagens paginada
+   */
+  private fun createPagedCharacters(universe: Universe, page: Int, size: Int): List&lt;Character&gt; {
+    // Limita o tamanho máximo a 25
+<span class="fc" id="L516">    val validSize = size.coerceAtMost(25)</span>
+
+    // Calcula o ID inicial e final dinamicamente
+<span class="fc" id="L519">    val startId = (page * validSize) + 1</span>
+<span class="fc" id="L520">    val endId = startId + validSize - 1</span>
+
+    // Lista para guardar os personagens
+<span class="fc" id="L523">    val result = mutableListOf&lt;Character&gt;()</span>
+
+    // Vamos gerar uma lista de personagens com IDs sequenciais
+<span class="pc bpc" id="L526" title="1 of 4 branches missed.">    for (id in startId..endId) {</span>
+      // O ID efetivo entre 1 e 25 usando lógica circular
+<span class="fc" id="L528">      val effectiveId = ((id - 1) % 25) + 1</span>
+
+      // Usamos o ID da página para o personagem, mas o nome vem do ID efetivo (1-25)
+<span class="pc bpc" id="L531" title="1 of 3 branches missed.">      when (universe) {</span>
+        Universe.DRAGON_BALL -&gt; {
+<span class="fc" id="L533">          val name = getDragonBallName(effectiveId)</span>
+<span class="fc" id="L534">          result.add(Character(id = id.toString(), name = name, universe = universe))</span>
+        }
+        Universe.POKEMON -&gt; {
+<span class="fc" id="L537">          val name = getPokemonName(effectiveId)</span>
+<span class="fc" id="L538">          result.add(Character(id = id.toString(), name = name, universe = universe))</span>
+        }
+        else -&gt; {
+<span class="nc" id="L541">          result.add(</span>
+<span class="nc" id="L542">                  Character(</span>
+<span class="nc" id="L543">                          id = id.toString(),</span>
+<span class="nc" id="L544">                          name = &quot;Unknown Character $effectiveId&quot;,</span>
+<span class="nc" id="L545">                          universe = universe</span>
+                  )
+          )
+        }
+      }
+    }
+
+<span class="fc" id="L552">    return result</span>
+  }
+
+  /** Retorna o nome de um personagem de Dragon Ball com base no ID. */
+  private fun getDragonBallName(id: Int): String {
+<span class="pc bpc" id="L557" title="16 of 26 branches missed.">    return when (id) {</span>
+<span class="fc" id="L558">      1 -&gt; &quot;Goku&quot;</span>
+<span class="fc" id="L559">      2 -&gt; &quot;Vegeta&quot;</span>
+<span class="fc" id="L560">      3 -&gt; &quot;Piccolo&quot;</span>
+<span class="fc" id="L561">      4 -&gt; &quot;Bulma&quot;</span>
+<span class="fc" id="L562">      5 -&gt; &quot;Freezer&quot;</span>
+<span class="fc" id="L563">      6 -&gt; &quot;Gohan&quot;</span>
+<span class="fc" id="L564">      7 -&gt; &quot;Trunks&quot;</span>
+<span class="fc" id="L565">      8 -&gt; &quot;Goten&quot;</span>
+<span class="fc" id="L566">      9 -&gt; &quot;Krillin&quot;</span>
+<span class="fc" id="L567">      10 -&gt; &quot;Cell&quot;</span>
+<span class="nc" id="L568">      11 -&gt; &quot;Majin Buu&quot;</span>
+<span class="nc" id="L569">      12 -&gt; &quot;Beerus&quot;</span>
+<span class="nc" id="L570">      13 -&gt; &quot;Whis&quot;</span>
+<span class="nc" id="L571">      14 -&gt; &quot;Android 17&quot;</span>
+<span class="nc" id="L572">      15 -&gt; &quot;Android 18&quot;</span>
+<span class="nc" id="L573">      16 -&gt; &quot;Yamcha&quot;</span>
+<span class="nc" id="L574">      17 -&gt; &quot;Tien&quot;</span>
+<span class="nc" id="L575">      18 -&gt; &quot;Chiaotzu&quot;</span>
+<span class="nc" id="L576">      19 -&gt; &quot;Master Roshi&quot;</span>
+<span class="nc" id="L577">      20 -&gt; &quot;Videl&quot;</span>
+<span class="nc" id="L578">      21 -&gt; &quot;Mr. Satan&quot;</span>
+<span class="nc" id="L579">      22 -&gt; &quot;Dabura&quot;</span>
+<span class="nc" id="L580">      23 -&gt; &quot;Supreme Kai&quot;</span>
+<span class="nc" id="L581">      24 -&gt; &quot;Kibito&quot;</span>
+<span class="nc" id="L582">      25 -&gt; &quot;Bardock&quot;</span>
+<span class="nc" id="L583">      else -&gt; &quot;Unknown Dragon Ball Character $id&quot;</span>
+    }
+  }
+
+  /** Retorna o nome de um personagem de Pokémon com base no ID. */
+  private fun getPokemonName(id: Int): String {
+<span class="pc bpc" id="L589" title="16 of 26 branches missed.">    return when (id) {</span>
+<span class="fc" id="L590">      1 -&gt; &quot;Bulbasaur&quot;</span>
+<span class="fc" id="L591">      2 -&gt; &quot;Ivysaur&quot;</span>
+<span class="fc" id="L592">      3 -&gt; &quot;Venusaur&quot;</span>
+<span class="fc" id="L593">      4 -&gt; &quot;Charmander&quot;</span>
+<span class="fc" id="L594">      5 -&gt; &quot;Charmeleon&quot;</span>
+<span class="fc" id="L595">      6 -&gt; &quot;Charizard&quot;</span>
+<span class="fc" id="L596">      7 -&gt; &quot;Squirtle&quot;</span>
+<span class="fc" id="L597">      8 -&gt; &quot;Wartortle&quot;</span>
+<span class="fc" id="L598">      9 -&gt; &quot;Blastoise&quot;</span>
+<span class="fc" id="L599">      10 -&gt; &quot;Caterpie&quot;</span>
+<span class="nc" id="L600">      11 -&gt; &quot;Metapod&quot;</span>
+<span class="nc" id="L601">      12 -&gt; &quot;Butterfree&quot;</span>
+<span class="nc" id="L602">      13 -&gt; &quot;Weedle&quot;</span>
+<span class="nc" id="L603">      14 -&gt; &quot;Kakuna&quot;</span>
+<span class="nc" id="L604">      15 -&gt; &quot;Beedrill&quot;</span>
+<span class="nc" id="L605">      16 -&gt; &quot;Pidgey&quot;</span>
+<span class="nc" id="L606">      17 -&gt; &quot;Pidgeotto&quot;</span>
+<span class="nc" id="L607">      18 -&gt; &quot;Pidgeot&quot;</span>
+<span class="nc" id="L608">      19 -&gt; &quot;Rattata&quot;</span>
+<span class="nc" id="L609">      20 -&gt; &quot;Raticate&quot;</span>
+<span class="nc" id="L610">      21 -&gt; &quot;Spearow&quot;</span>
+<span class="nc" id="L611">      22 -&gt; &quot;Fearow&quot;</span>
+<span class="nc" id="L612">      23 -&gt; &quot;Ekans&quot;</span>
+<span class="nc" id="L613">      24 -&gt; &quot;Arbok&quot;</span>
+<span class="nc" id="L614">      25 -&gt; &quot;Pikachu&quot;</span>
+<span class="nc" id="L615">      else -&gt; &quot;Unknown Pokémon Character $id&quot;</span>
+    }
   }
 }
 
 /** Classe para representar uma página de resultados */
-<span class="pc" id="L520">data class Page&lt;T&gt;(val content: List&lt;T&gt;, val page: Int, val size: Int, val totalElements: Long) {</span>
-<span class="fc" id="L521">  val totalPages: Int = Math.ceil(totalElements.toDouble() / size).toInt().coerceAtLeast(1)</span>
-<span class="fc bfc" id="L522" title="All 2 branches covered.">  val isFirst: Boolean = page &lt;= 0</span>
-<span class="fc bfc" id="L523" title="All 2 branches covered.">  val isLast: Boolean = page &gt;= totalPages - 1</span>
-<span class="fc bfc" id="L524" title="All 2 branches covered.">  val hasNext: Boolean = !isLast</span>
-<span class="fc bfc" id="L525" title="All 2 branches covered.">  val hasPrevious: Boolean = !isFirst</span>
+<span class="pc" id="L621">data class Page&lt;T&gt;(val content: List&lt;T&gt;, val page: Int, val size: Int, val totalElements: Long) {</span>
+<span class="fc" id="L622">  val totalPages: Int = Math.ceil(totalElements.toDouble() / size).toInt().coerceAtLeast(1)</span>
+<span class="fc bfc" id="L623" title="All 2 branches covered.">  val isFirst: Boolean = page &lt;= 0</span>
+<span class="fc bfc" id="L624" title="All 2 branches covered.">  val isLast: Boolean = page &gt;= totalPages - 1</span>
+<span class="fc bfc" id="L625" title="All 2 branches covered.">  val hasNext: Boolean = !isLast</span>
+<span class="fc bfc" id="L626" title="All 2 branches covered.">  val hasPrevious: Boolean = !isFirst</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

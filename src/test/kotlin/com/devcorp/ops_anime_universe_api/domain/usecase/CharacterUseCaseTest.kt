@@ -284,8 +284,8 @@ class CharacterUseCaseTest {
 
                         // Assert
                         assertEquals(0, result.content.size)
-                        // O valor totalElements é estimado como 1000 no CharacterUseCase
-                        assertEquals(1000, result.totalElements)
+                        // O valor totalElements agora é 1452 (150 + 1302)
+                        assertEquals(1452, result.totalElements)
                 }
 
         @Test
@@ -333,9 +333,9 @@ class CharacterUseCaseTest {
                         // totalElements padrão
                         assertEquals(0, result.content.size)
                         assertEquals(
-                                1000L,
+                                1452L,
                                 result.totalElements
-                        ) // O CharacterUseCase.ESTIMATED_TOTAL_ELEMENTS é 1000L
+                        ) // Atualizado para 1452L (150 + 1302)
                 }
 
         @Test

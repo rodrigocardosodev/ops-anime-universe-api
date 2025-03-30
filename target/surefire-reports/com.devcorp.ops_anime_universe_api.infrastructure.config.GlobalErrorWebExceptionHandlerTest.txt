@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.devcorp.ops_anime_universe_api.infrastructure.config.GlobalErrorWebExceptionHandlerTest
 -------------------------------------------------------------------------------
-Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.237 s -- in com.devcorp.ops_anime_universe_api.infrastructure.config.GlobalErrorWebExceptionHandlerTest
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.133 s -- in com.devcorp.ops_anime_universe_api.infrastructure.config.GlobalErrorWebExceptionHandlerTest

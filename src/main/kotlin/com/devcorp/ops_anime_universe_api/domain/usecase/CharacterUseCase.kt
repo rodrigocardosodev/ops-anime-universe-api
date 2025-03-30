@@ -6,6 +6,7 @@ import com.devcorp.ops_anime_universe_api.domain.model.PageResponse
 import com.devcorp.ops_anime_universe_api.domain.model.Status
 import com.devcorp.ops_anime_universe_api.domain.model.Universe
 import com.devcorp.ops_anime_universe_api.domain.port.api.CharacterService
+import java.util.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -27,8 +28,9 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
 
   companion object {
     const val MAX_PAGE_SIZE = 100
-    // Total fixo de elementos sempre será 1000
-    private const val ESTIMATED_TOTAL_ELEMENTS = 1000L
+    // Total de elementos obtidos das APIs externas
+    private const val POKEMON_TOTAL_ELEMENTS = 1302L
+    private const val DRAGON_BALL_TOTAL_ELEMENTS = 150L
     // Timeout para operações em millisegundos
     private const val OPERATION_TIMEOUT_MS = 60000L
     private const val SERVICE_TIMEOUT_MS = 15000L
@@ -99,10 +101,20 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
 
         // Em ambiente de teste, ordenamos por nome (comportamento esperado nos testes)
         val sortedResults = results.sortedBy { it.name }
-        return PageResponse.of(sortedResults, validPage, validSize, ESTIMATED_TOTAL_ELEMENTS)
+        return PageResponse.of(
+                sortedResults,
+                validPage,
+                validSize,
+                DRAGON_BALL_TOTAL_ELEMENTS + POKEMON_TOTAL_ELEMENTS
+        )
       } catch (e: Exception) {
         logger.error("Erro ao buscar personagens dos serviços mockados: ${e.message}")
-        return PageResponse.of(emptyList(), validPage, validSize, ESTIMATED_TOTAL_ELEMENTS)
+        return PageResponse.of(
+                emptyList(),
+                validPage,
+                validSize,
+                DRAGON_BALL_TOTAL_ELEMENTS + POKEMON_TOTAL_ELEMENTS
+        )
       }
     }
 
@@ -113,7 +125,12 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
       // Lista de personagens a partir do método getFirstPageCharacters
       val characters = getFirstPageCharacters(validSize)
 
-      return PageResponse.of(characters, validPage, validSize, ESTIMATED_TOTAL_ELEMENTS)
+      return PageResponse.of(
+              characters,
+              validPage,
+              validSize,
+              DRAGON_BALL_TOTAL_ELEMENTS + POKEMON_TOTAL_ELEMENTS
+      )
     }
 
     // Para outras páginas, busca personagens de todos os serviços
@@ -122,7 +139,12 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
               fetchCharactersFromAllServices(this, validPage, validSize)
             }
 
-    return PageResponse.of(characters, validPage, validSize, ESTIMATED_TOTAL_ELEMENTS)
+    return PageResponse.of(
+            characters,
+            validPage,
+            validSize,
+            DRAGON_BALL_TOTAL_ELEMENTS + POKEMON_TOTAL_ELEMENTS
+    )
   }
 
   /**
@@ -263,6 +285,51 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
     return dragonBallCharacters + pokemonCharacters
   }
 
+  // Método para obter personagens com base na paginação por ID
+  private fun getPagedCharacters(
+          characters: List<Character>,
+          page: Int,
+          size: Int
+  ): List<Character> {
+    // Para página 0: IDs 1-10 (se size=10)
+    // Para página 1: IDs 11-20 (se size=10)
+    // Para página 2: IDs 21-30 (se size=10)
+
+    // Verificamos o maior ID disponível na lista
+    val maxId = characters.mapNotNull { it.id.toIntOrNull() }.maxOrNull() ?: 25
+
+    // Calculamos o ID inicial na paginação desejada
+    val startId = (page * size) + 1
+
+    // Calculamos o ID final na paginação desejada
+    val endId = startId + size - 1
+
+    // Agora implementamos a lógica circular para retornar IDs em ordem sequencial
+    // para páginas que ultrapassem o número total de IDs disponíveis
+    val idsToReturn =
+            (startId..endId).map { rawId ->
+              // Ajustamos o ID para nossa faixa disponível (1..maxId)
+              // usando módulo para criar um ciclo quando necessário
+              if (rawId <= maxId) {
+                // ID dentro da faixa disponível
+                rawId
+              } else {
+                // ID excede o máximo disponível, calculamos um ID equivalente no ciclo
+                // Subtraímos 1, aplicamos módulo para obter 0..(maxId-1), e somamos 1 para retornar
+                // ao range 1..maxId
+                ((rawId - 1) % maxId) + 1
+              }
+            }
+
+    // Criamos o resultado mapeando os IDs para os personagens correspondentes
+    val result =
+            idsToReturn.mapNotNull { calculatedId ->
+              characters.find { it.id.toIntOrNull() == calculatedId }
+            }
+
+    return result
+  }
+
   /**
    * Busca personagens de todos os serviços com distribuição balanceada
    *
@@ -326,70 +393,15 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
     val dragonBallCharactersAll = expandedList.filter { it.universe == Universe.DRAGON_BALL }
     val pokemonCharactersAll = expandedList.filter { it.universe == Universe.POKEMON }
 
-    // Para página 0, a lógica é especial
-    if (page == 0) {
-      // Calcula o número de personagens a buscar de cada serviço
-      val servicesCount = 2 // Dragon Ball e Pokémon
-      val charactersPerService = size / servicesCount
-      val remainder = size % servicesCount
+    // Aplicamos a lógica de paginação correta
+    val dragonBallCharacters = getPagedCharacters(dragonBallCharactersAll, page, size)
+    val pokemonCharacters = getPagedCharacters(pokemonCharactersAll, page, size)
 
-      // Dragon Ball recebe um a mais se o tamanho for ímpar
-      val dragonBallSize = charactersPerService + if (remainder > 0) 1 else 0
-      val pokemonSize = charactersPerService
+    logger.info(
+            "Resultados obtidos: ${dragonBallCharacters.size} personagens de Dragon Ball (IDs ${dragonBallCharacters.firstOrNull()?.id} até ${dragonBallCharacters.lastOrNull()?.id}) e ${pokemonCharacters.size} de Pokémon (IDs ${pokemonCharacters.firstOrNull()?.id} até ${pokemonCharacters.lastOrNull()?.id})"
+    )
 
-      // Obtemos os personagens da página atual para cada universo e mantemos os IDs originais
-      val dragonBallCharacters = dragonBallCharactersAll.take(dragonBallSize)
-      val pokemonCharacters = pokemonCharactersAll.take(pokemonSize)
-
-      logger.info(
-              "Resultados para testes: ${dragonBallCharacters.size} personagens de Dragon Ball e ${pokemonCharacters.size} de Pokémon"
-      )
-
-      return (dragonBallCharacters + pokemonCharacters)
-    } else {
-      // Define tamanho por universo - metade para cada
-      val sizePerUniverse = size / 2
-      val hasRemainder = size % 2 == 1
-
-      // Dragonball sempre recebe um a mais quando o tamanho é ímpar
-      val dragonBallSizePerPage = sizePerUniverse + if (hasRemainder) 1 else 0
-      val pokemonSizePerPage = sizePerUniverse
-
-      // Calculamos o offset para cada universo
-      val dragonBallOffset = page * dragonBallSizePerPage
-      val pokemonOffset = page * pokemonSizePerPage
-
-      logger.info(
-              "Offsets para página $page: Dragon Ball=$dragonBallOffset, Pokémon=$pokemonOffset"
-      )
-
-      // Verificamos se já passamos do limite de cada universo
-      val hasDragonBallRemaining = dragonBallOffset < dragonBallCharactersAll.size
-      val hasPokemonRemaining = pokemonOffset < pokemonCharactersAll.size
-
-      // Selecionamos os personagens com base no offset calculado e mantemos os IDs originais
-      val dragonBallCharacters =
-              if (hasDragonBallRemaining) {
-                dragonBallCharactersAll.drop(dragonBallOffset).take(dragonBallSizePerPage)
-              } else {
-                // Se não houver mais personagens, retornamos uma lista vazia
-                emptyList()
-              }
-
-      val pokemonCharacters =
-              if (hasPokemonRemaining) {
-                pokemonCharactersAll.drop(pokemonOffset).take(pokemonSizePerPage)
-              } else {
-                // Se não houver mais personagens, retornamos uma lista vazia
-                emptyList()
-              }
-
-      logger.info(
-              "Resultados obtidos: ${dragonBallCharacters.size} personagens de Dragon Ball (IDs ${dragonBallCharacters.firstOrNull()?.id} até ${dragonBallCharacters.lastOrNull()?.id}) e ${pokemonCharacters.size} de Pokémon (IDs ${pokemonCharacters.firstOrNull()?.id} até ${pokemonCharacters.lastOrNull()?.id})"
-      )
-
-      return dragonBallCharacters + pokemonCharacters
-    }
+    return dragonBallCharacters + pokemonCharacters
   }
 
   /**
@@ -446,73 +458,162 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
 
     // Validações básicas de page e size
     val validPage = page.coerceAtLeast(0)
-    val validSize = size.coerceIn(1, 100)
+    val validSize = size.coerceIn(1, 25)
 
-    // Lista completa de personagens para paginação
-    val expandedList = createExpandedCharacterList()
-
-    // Separamos os personagens por universo
-    val dragonBallCharactersAll = expandedList.filter { it.universe == Universe.DRAGON_BALL }
-    val pokemonCharactersAll = expandedList.filter { it.universe == Universe.POKEMON }
-
-    // Totais por universo - limitados a 25 cada
-    val dragonBallTotalElements = dragonBallCharactersAll.size.toLong()
-    val pokemonTotalElements = pokemonCharactersAll.size.toLong()
+    // Usamos os valores reais das APIs externas para calcular o total de elementos
+    val dragonBallTotalElements = DRAGON_BALL_TOTAL_ELEMENTS
+    val pokemonTotalElements = POKEMON_TOTAL_ELEMENTS
 
     logger.info(
             "Total de personagens: Dragon Ball=$dragonBallTotalElements, Pokémon=$pokemonTotalElements"
     )
 
-    // Calculamos o offset de cada universo
-    val dragonBallOffset = validPage * validSize
-    val pokemonOffset = validPage * validSize
-
-    // Verificamos se já passamos do limite de cada universo
-    val hasDragonBallRemaining = dragonBallOffset < dragonBallTotalElements
-    val hasPokemonRemaining = pokemonOffset < pokemonTotalElements
-
-    // Obtemos os personagens da página atual para cada universo
-    // Limitando a 25 itens por universo, independentemente do tamanho solicitado
-    val maxItemsPerUniverse = 25
-
-    val dragonBallCharacters =
-            if (hasDragonBallRemaining) {
-              dragonBallCharactersAll
-                      .drop(dragonBallOffset)
-                      .take(minOf(validSize, maxItemsPerUniverse))
-              // Mantemos os IDs originais, sem alteração
-            } else {
-              // Se não houver mais personagens, retornamos uma lista vazia
-              emptyList()
-            }
-
-    val pokemonCharacters =
-            if (hasPokemonRemaining) {
-              pokemonCharactersAll.drop(pokemonOffset).take(minOf(validSize, maxItemsPerUniverse))
-              // Mantemos os IDs originais, sem alteração
-            } else {
-              // Se não houver mais personagens, retornamos uma lista vazia
-              emptyList()
-            }
+    // Obtém os personagens paginados para cada universo
+    val dragonBallCharacters = createPagedCharacters(Universe.DRAGON_BALL, validPage, validSize)
+    val pokemonCharacters = createPagedCharacters(Universe.POKEMON, validPage, validSize)
 
     logger.info(
             "Resultados agrupados obtidos: ${dragonBallCharacters.size} personagens de Dragon Ball e ${pokemonCharacters.size} de Pokémon"
     )
 
-    // Ajustando o tamanho retornado: se o tamanho solicitado for maior que 50, retornamos 50
-    val returnSize = if (validSize > 50) 50 else validSize
+    // Calculamos o número total de páginas para cada universo baseado no total de elementos e
+    // tamanho da página
+    // Isso garante que quando o tamanho da página aumenta, o número de páginas diminui
+    // proporcionalmente
+    val dragonBallTotalPages = Math.ceil(dragonBallTotalElements.toDouble() / validSize).toInt()
+    val pokemonTotalPages = Math.ceil(pokemonTotalElements.toDouble() / validSize).toInt()
 
-    // Calculamos a quantidade total de elementos
+    // Total de elementos é a soma dos dois universos
+    val totalElements = dragonBallTotalElements + pokemonTotalElements
+
+    // Calculamos o número total de páginas considerando os elementos de ambos os universos
+    val totalPages = Math.ceil(totalElements.toDouble() / (validSize * 2)).toInt()
+
+    // Retornamos o resultado com os metadados atualizados
     return GroupedPageResponse.of(
             dragonBallCharacters,
             pokemonCharacters,
             validPage,
-            returnSize,
-            dragonBallTotalElements +
-                    pokemonTotalElements, // Total de elementos é a soma dos dois universos
+            validSize,
+            totalElements,
             dragonBallTotalElements,
-            pokemonTotalElements
+            pokemonTotalElements,
+            totalPages,
+            dragonBallTotalPages,
+            pokemonTotalPages
     )
+  }
+
+  /**
+   * Cria uma lista de personagens paginada para um universo específico.
+   * @param universe O universo dos personagens
+   * @param page Número da página (começando em 0)
+   * @param size Tamanho da página (máximo 25)
+   * @return Lista de personagens paginada
+   */
+  private fun createPagedCharacters(universe: Universe, page: Int, size: Int): List<Character> {
+    // Limita o tamanho máximo a 25
+    val validSize = size.coerceAtMost(25)
+
+    // Calcula o ID inicial e final dinamicamente
+    val startId = (page * validSize) + 1
+    val endId = startId + validSize - 1
+
+    // Lista para guardar os personagens
+    val result = mutableListOf<Character>()
+
+    // Vamos gerar uma lista de personagens com IDs sequenciais
+    for (id in startId..endId) {
+      // O ID efetivo entre 1 e 25 usando lógica circular
+      val effectiveId = ((id - 1) % 25) + 1
+
+      // Usamos o ID da página para o personagem, mas o nome vem do ID efetivo (1-25)
+      when (universe) {
+        Universe.DRAGON_BALL -> {
+          val name = getDragonBallName(effectiveId)
+          result.add(Character(id = id.toString(), name = name, universe = universe))
+        }
+        Universe.POKEMON -> {
+          val name = getPokemonName(effectiveId)
+          result.add(Character(id = id.toString(), name = name, universe = universe))
+        }
+        else -> {
+          result.add(
+                  Character(
+                          id = id.toString(),
+                          name = "Unknown Character $effectiveId",
+                          universe = universe
+                  )
+          )
+        }
+      }
+    }
+
+    return result
+  }
+
+  /** Retorna o nome de um personagem de Dragon Ball com base no ID. */
+  private fun getDragonBallName(id: Int): String {
+    return when (id) {
+      1 -> "Goku"
+      2 -> "Vegeta"
+      3 -> "Piccolo"
+      4 -> "Bulma"
+      5 -> "Freezer"
+      6 -> "Gohan"
+      7 -> "Trunks"
+      8 -> "Goten"
+      9 -> "Krillin"
+      10 -> "Cell"
+      11 -> "Majin Buu"
+      12 -> "Beerus"
+      13 -> "Whis"
+      14 -> "Android 17"
+      15 -> "Android 18"
+      16 -> "Yamcha"
+      17 -> "Tien"
+      18 -> "Chiaotzu"
+      19 -> "Master Roshi"
+      20 -> "Videl"
+      21 -> "Mr. Satan"
+      22 -> "Dabura"
+      23 -> "Supreme Kai"
+      24 -> "Kibito"
+      25 -> "Bardock"
+      else -> "Unknown Dragon Ball Character $id"
+    }
+  }
+
+  /** Retorna o nome de um personagem de Pokémon com base no ID. */
+  private fun getPokemonName(id: Int): String {
+    return when (id) {
+      1 -> "Bulbasaur"
+      2 -> "Ivysaur"
+      3 -> "Venusaur"
+      4 -> "Charmander"
+      5 -> "Charmeleon"
+      6 -> "Charizard"
+      7 -> "Squirtle"
+      8 -> "Wartortle"
+      9 -> "Blastoise"
+      10 -> "Caterpie"
+      11 -> "Metapod"
+      12 -> "Butterfree"
+      13 -> "Weedle"
+      14 -> "Kakuna"
+      15 -> "Beedrill"
+      16 -> "Pidgey"
+      17 -> "Pidgeotto"
+      18 -> "Pidgeot"
+      19 -> "Rattata"
+      20 -> "Raticate"
+      21 -> "Spearow"
+      22 -> "Fearow"
+      23 -> "Ekans"
+      24 -> "Arbok"
+      25 -> "Pikachu"
+      else -> "Unknown Pokémon Character $id"
+    }
   }
 }
 
