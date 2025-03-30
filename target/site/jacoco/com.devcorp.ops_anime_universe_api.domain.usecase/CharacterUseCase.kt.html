@@ -192,11 +192,11 @@ import org.springframework.stereotype.Component
 }
 
 /** Classe para representar uma página de resultados */
-<span class="nc" id="L195">data class Page&lt;T&gt;(val content: List&lt;T&gt;, val page: Int, val size: Int, val totalElements: Long) {</span>
-<span class="nc" id="L196">  val totalPages: Int = Math.ceil(totalElements.toDouble() / size).toInt().coerceAtLeast(1)</span>
-<span class="nc bnc" id="L197" title="All 2 branches missed.">  val isFirst: Boolean = page &lt;= 0</span>
-<span class="nc bnc" id="L198" title="All 2 branches missed.">  val isLast: Boolean = page &gt;= totalPages - 1</span>
-<span class="nc bnc" id="L199" title="All 2 branches missed.">  val hasNext: Boolean = !isLast</span>
-<span class="nc bnc" id="L200" title="All 2 branches missed.">  val hasPrevious: Boolean = !isFirst</span>
+<span class="pc" id="L195">data class Page&lt;T&gt;(val content: List&lt;T&gt;, val page: Int, val size: Int, val totalElements: Long) {</span>
+<span class="fc" id="L196">  val totalPages: Int = Math.ceil(totalElements.toDouble() / size).toInt().coerceAtLeast(1)</span>
+<span class="fc bfc" id="L197" title="All 2 branches covered.">  val isFirst: Boolean = page &lt;= 0</span>
+<span class="fc bfc" id="L198" title="All 2 branches covered.">  val isLast: Boolean = page &gt;= totalPages - 1</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">  val hasNext: Boolean = !isLast</span>
+<span class="fc bfc" id="L200" title="All 2 branches covered.">  val hasPrevious: Boolean = !isFirst</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
