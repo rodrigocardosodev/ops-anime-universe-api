@@ -4,6 +4,7 @@ import com.devcorp.ops_anime_universe_api.domain.port.spi.DragonBallApiClient
 import com.devcorp.ops_anime_universe_api.infrastructure.adapter.secondary.api.dragonball.dto.DragonBallCharacterResponse
 import com.devcorp.ops_anime_universe_api.infrastructure.adapter.secondary.api.dragonball.dto.DragonBallPageResponse
 import com.devcorp.ops_anime_universe_api.infrastructure.adapter.secondary.api.dragonball.dto.MetaData
+import com.devcorp.ops_anime_universe_api.infrastructure.config.WebClientConfig
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker
 import io.github.resilience4j.retry.annotation.Retry
 import kotlinx.coroutines.Dispatchers
@@ -19,48 +20,51 @@ import org.springframework.web.reactive.function.client.awaitBodilessEntity
 import org.springframework.web.reactive.function.client.awaitBody
 
 /** Adaptador para a API do Dragon Ball */
-<span class="fc" id="L22">@Component</span>
-<span class="fc" id="L23">class DragonBallApiAdapter(</span>
-<span class="fc" id="L24">        private val webClientBuilder: WebClient.Builder,</span>
-<span class="fc" id="L25">        @Value(&quot;\${external.api.dragonball.base-url}&quot;) private val baseUrl: String</span>
+<span class="fc" id="L23">@Component</span>
+<span class="fc" id="L24">class DragonBallApiAdapter(</span>
+<span class="fc" id="L25">        private val webClientConfig: WebClientConfig,</span>
+<span class="fc" id="L26">        @Value(&quot;\${external.api.dragonball.base-url}&quot;) private val baseUrl: String</span>
 ) : DragonBallApiClient {
 
-<span class="fc" id="L28">  private val logger = LoggerFactory.getLogger(DragonBallApiAdapter::class.java)</span>
+<span class="fc" id="L29">  private val logger = LoggerFactory.getLogger(DragonBallApiAdapter::class.java)</span>
 
-  // Inicialização tardia do WebClient com a URL base correta
-<span class="fc" id="L31">  private val webClient: WebClient by lazy {</span>
-<span class="fc" id="L32">    logger.info(&quot;Inicializando WebClient para Dragon Ball API com URL base: {}&quot;, baseUrl)</span>
-<span class="fc" id="L33">    webClientBuilder.baseUrl(baseUrl).build()</span>
-  }
+  // Criamos um WebClient específico para o Dragon Ball.
+  // Não usamos o lazy aqui para evitar problemas de inicialização
+  private val dragonBallWebClient: WebClient =
+<span class="fc" id="L34">          webClientConfig.webClientBuilder().baseUrl(baseUrl.trim().removeSuffix(&quot;/&quot;)).build()</span>
 
   @CircuitBreaker(name = &quot;dragonballApi&quot;, fallbackMethod = &quot;getCharactersFallback&quot;)
   @Retry(name = &quot;dragonballApi&quot;)
-  @Cacheable(value = [&quot;dragonball&quot;], key = &quot;#page + '-' + #limit&quot;)
+  @Cacheable(value = [&quot;dragonball&quot;], key = &quot;'list-' + #page + '-' + #limit&quot;)
   override suspend fun getCharacters(
           page: Int,
           limit: Int
   ): DragonBallPageResponse&lt;DragonBallCharacterResponse&gt; {
 <span class="fc" id="L43">    logger.info(&quot;Buscando personagens do Dragon Ball: página $page, limite $limit&quot;)</span>
+<span class="fc" id="L44">    logger.debug(&quot;URL Base: {}, Endpoint: /api/characters&quot;, baseUrl)</span>
 
-<span class="pc" id="L45">    return withContext(Dispatchers.IO) {</span>
-<span class="fc" id="L46">      try {</span>
-<span class="fc" id="L47">        webClient</span>
-<span class="fc" id="L48">                .get()</span>
-<span class="fc" id="L49">                .uri { uriBuilder -&gt;</span>
-<span class="fc" id="L50">                  uriBuilder</span>
-<span class="fc" id="L51">                          .path(&quot;/characters&quot;)</span>
-<span class="fc" id="L52">                          .queryParam(&quot;page&quot;, page)</span>
-<span class="fc" id="L53">                          .queryParam(&quot;limit&quot;, limit)</span>
-<span class="fc" id="L54">                          .build()</span>
+<span class="pc" id="L46">    return withContext(Dispatchers.IO) {</span>
+<span class="fc" id="L47">      try {</span>
+<span class="fc" id="L48">        dragonBallWebClient</span>
+<span class="fc" id="L49">                .get()</span>
+<span class="fc" id="L50">                .uri { uriBuilder -&gt;</span>
+<span class="fc" id="L51">                  uriBuilder</span>
+<span class="fc" id="L52">                          .path(&quot;/api/characters&quot;)</span>
+<span class="fc" id="L53">                          .queryParam(&quot;page&quot;, page)</span>
+<span class="fc" id="L54">                          .queryParam(&quot;limit&quot;, limit)</span>
+<span class="fc" id="L55">                          .build()</span>
                 }
-<span class="fc" id="L56">                .retrieve()</span>
-<span class="fc" id="L57">                .awaitBody&lt;DragonBallPageResponse&lt;DragonBallCharacterResponse&gt;&gt;()</span>
-<span class="fc" id="L58">      } catch (e: WebClientResponseException) {</span>
-<span class="fc" id="L59">        logger.error(&quot;Erro HTTP ${e.statusCode} ao buscar personagens do Dragon Ball&quot;, e)</span>
-<span class="fc" id="L60">        createEmptyResponse(page, limit)</span>
-<span class="fc" id="L61">      } catch (e: Exception) {</span>
-<span class="fc" id="L62">        logger.error(&quot;Erro ao buscar personagens do Dragon Ball: ${e.message}&quot;, e)</span>
-<span class="fc" id="L63">        createEmptyResponse(page, limit)</span>
+<span class="fc" id="L57">                .retrieve()</span>
+<span class="fc" id="L58">                .awaitBody&lt;DragonBallPageResponse&lt;DragonBallCharacterResponse&gt;&gt;()</span>
+<span class="fc" id="L59">      } catch (e: WebClientResponseException) {</span>
+<span class="fc" id="L60">        logger.error(</span>
+<span class="fc" id="L61">                &quot;Erro HTTP ${e.statusCode} ao buscar personagens do Dragon Ball: ${e.message}&quot;,</span>
+<span class="fc" id="L62">                e</span>
+        )
+<span class="fc" id="L64">        createEmptyResponse(page, limit)</span>
+<span class="fc" id="L65">      } catch (e: Exception) {</span>
+<span class="fc" id="L66">        logger.error(&quot;Erro ao buscar personagens do Dragon Ball: ${e.message}&quot;, e)</span>
+<span class="fc" id="L67">        createEmptyResponse(page, limit)</span>
       }
     }
   }
@@ -68,14 +72,22 @@ import org.springframework.web.reactive.function.client.awaitBody
   @CircuitBreaker(name = &quot;dragonballApi&quot;, fallbackMethod = &quot;isAvailableFallback&quot;)
   @Retry(name = &quot;dragonballApi&quot;)
   override suspend fun isAvailable(): Boolean {
-<span class="fc" id="L71">    logger.info(&quot;Verificando disponibilidade da API do Dragon Ball&quot;)</span>
-<span class="fc" id="L72">    return withContext(Dispatchers.IO) {</span>
-<span class="fc" id="L73">      try {</span>
-<span class="fc" id="L74">        val response = webClient.get().uri(&quot;/characters?limit=1&quot;).retrieve().awaitBodilessEntity()</span>
-<span class="pc bpc" id="L75" title="1 of 2 branches missed.">        response.statusCode == HttpStatus.OK</span>
-<span class="fc" id="L76">      } catch (e: Exception) {</span>
-<span class="fc" id="L77">        logger.error(&quot;Erro ao verificar disponibilidade da API do Dragon Ball: ${e.message}&quot;, e)</span>
-<span class="fc bfc" id="L78" title="All 2 branches covered.">        false</span>
+<span class="fc" id="L75">    logger.info(&quot;Verificando disponibilidade da API do Dragon Ball&quot;)</span>
+<span class="fc" id="L76">    logger.debug(&quot;URL Base: {}, Endpoint: /api/characters?limit=1&quot;, baseUrl)</span>
+
+<span class="fc" id="L78">    return withContext(Dispatchers.IO) {</span>
+<span class="fc" id="L79">      try {</span>
+<span class="fc" id="L80">        val response =</span>
+<span class="fc" id="L81">                dragonBallWebClient</span>
+<span class="fc" id="L82">                        .get()</span>
+<span class="fc" id="L83">                        .uri(&quot;/api/characters?limit=1&quot;)</span>
+<span class="fc" id="L84">                        .retrieve()</span>
+<span class="fc" id="L85">                        .awaitBodilessEntity()</span>
+<span class="fc" id="L86">        logger.info(&quot;Status code da Dragon Ball API: {}&quot;, response.statusCode)</span>
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">        response.statusCode == HttpStatus.OK</span>
+<span class="fc" id="L88">      } catch (e: Exception) {</span>
+<span class="fc" id="L89">        logger.error(&quot;Erro ao verificar disponibilidade da API do Dragon Ball: ${e.message}&quot;, e)</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">        false</span>
       }
     }
   }
@@ -86,16 +98,16 @@ import org.springframework.web.reactive.function.client.awaitBody
           limit: Int,
           e: Exception
   ): DragonBallPageResponse&lt;DragonBallCharacterResponse&gt; {
-<span class="fc" id="L89">    logger.warn(</span>
-<span class="fc" id="L90">            &quot;Fallback acionado para getCharacters com página $page e limite $limit: ${e.message}&quot;</span>
+<span class="fc" id="L101">    logger.warn(</span>
+<span class="fc" id="L102">            &quot;Fallback acionado para getCharacters com página $page e limite $limit: ${e.message}&quot;</span>
     )
-<span class="fc" id="L92">    return createEmptyResponse(page, limit)</span>
+<span class="fc" id="L104">    return createEmptyResponse(page, limit)</span>
   }
 
   // Método de fallback para isAvailable
   suspend fun isAvailableFallback(e: Exception): Boolean {
-<span class="fc" id="L97">    logger.warn(&quot;Fallback acionado para isAvailable: ${e.message}&quot;)</span>
-<span class="fc" id="L98">    return false</span>
+<span class="fc" id="L109">    logger.warn(&quot;Fallback acionado para isAvailable: ${e.message}&quot;)</span>
+<span class="fc" id="L110">    return false</span>
   }
 
   // Método auxiliar para criar resposta vazia
@@ -103,15 +115,15 @@ import org.springframework.web.reactive.function.client.awaitBody
           page: Int,
           limit: Int
   ): DragonBallPageResponse&lt;DragonBallCharacterResponse&gt; {
-<span class="fc" id="L106">    return DragonBallPageResponse(</span>
-<span class="fc" id="L107">            items = emptyList(),</span>
+<span class="fc" id="L118">    return DragonBallPageResponse(</span>
+<span class="fc" id="L119">            items = emptyList(),</span>
             meta =
-<span class="fc" id="L109">                    MetaData(</span>
-<span class="fc" id="L110">                            totalItems = 0,</span>
-<span class="fc" id="L111">                            itemCount = 0,</span>
-<span class="fc" id="L112">                            itemsPerPage = limit,</span>
-<span class="fc" id="L113">                            totalPages = 0,</span>
-<span class="fc" id="L114">                            currentPage = page</span>
+<span class="fc" id="L121">                    MetaData(</span>
+<span class="fc" id="L122">                            totalItems = 0,</span>
+<span class="fc" id="L123">                            itemCount = 0,</span>
+<span class="fc" id="L124">                            itemsPerPage = limit,</span>
+<span class="fc" id="L125">                            totalPages = 0,</span>
+<span class="fc" id="L126">                            currentPage = page</span>
                     )
     )
   }

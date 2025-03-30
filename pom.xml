@@ -31,6 +31,7 @@
 		<kotlin.version>1.9.25</kotlin.version>
 		<coroutines.version>1.8.0</coroutines.version>
 		<resilience4j.version>2.2.0</resilience4j.version>
+		<kotlin.compiler.jvmTarget>21</kotlin.compiler.jvmTarget>
 	</properties>
 	<dependencies>
 		<dependency>

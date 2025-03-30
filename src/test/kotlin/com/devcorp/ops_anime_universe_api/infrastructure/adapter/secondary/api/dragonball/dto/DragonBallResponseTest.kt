@@ -8,7 +8,7 @@ class DragonBallResponseTest {
   @Test
   fun `DragonBallPageResponse should hold correct values`() {
     // Arrange
-    val items = listOf(DragonBallCharacterResponse(id = "1", name = "Goku"))
+    val items = listOf(DragonBallCharacterResponse(id = 1, name = "Goku"))
     val meta =
             MetaData(
                     totalItems = 100,
@@ -56,7 +56,7 @@ class DragonBallResponseTest {
   @Test
   fun `DragonBallCharacterResponse should hold correct values`() {
     // Arrange
-    val id = "1"
+    val id = 1
     val name = "Goku"
     val ki = "10000"
     val maxKi = "15000"
@@ -92,7 +92,7 @@ class DragonBallResponseTest {
   @Test
   fun `DragonBallCharacterResponse should allow null optional fields`() {
     // Arrange
-    val id = "1"
+    val id = 1
     val name = "Goku"
 
     // Act
@@ -112,11 +112,11 @@ class DragonBallResponseTest {
   @Test
   fun `DragonBallPageResponse equals and hashCode should work correctly`() {
     // Arrange
-    val items1 = listOf(DragonBallCharacterResponse(id = "1", name = "Goku"))
+    val items1 = listOf(DragonBallCharacterResponse(id = 1, name = "Goku"))
     val meta1 = MetaData(100, 1, 10, 10, 1)
     val response1 = DragonBallPageResponse(items1, meta1)
 
-    val items2 = listOf(DragonBallCharacterResponse(id = "1", name = "Goku"))
+    val items2 = listOf(DragonBallCharacterResponse(id = 1, name = "Goku"))
     val meta2 = MetaData(100, 1, 10, 10, 1)
     val response2 = DragonBallPageResponse(items2, meta2)
 
@@ -139,9 +139,9 @@ class DragonBallResponseTest {
   @Test
   fun `DragonBallCharacterResponse equals and hashCode should work correctly`() {
     // Arrange
-    val char1 = DragonBallCharacterResponse(id = "1", name = "Goku", ki = "10000", race = "Saiyan")
+    val char1 = DragonBallCharacterResponse(id = 1, name = "Goku", ki = "10000", race = "Saiyan")
 
-    val char2 = DragonBallCharacterResponse(id = "1", name = "Goku", ki = "10000", race = "Saiyan")
+    val char2 = DragonBallCharacterResponse(id = 1, name = "Goku", ki = "10000", race = "Saiyan")
 
     // Act & Assert
     assertEquals(char1, char2)
@@ -151,7 +151,7 @@ class DragonBallResponseTest {
   @Test
   fun `toString should return readable representation`() {
     // Arrange
-    val character = DragonBallCharacterResponse(id = "1", name = "Goku", ki = "10000")
+    val character = DragonBallCharacterResponse(id = 1, name = "Goku", ki = "10000")
 
     // Act
     val toString = character.toString()
@@ -159,7 +159,7 @@ class DragonBallResponseTest {
     // Assert
     assertEquals(
             "DragonBallCharacterResponse(id=1, name=Goku, ki=10000, maxKi=null, race=null, " +
-                    "gender=null, description=null, image=null)",
+                    "gender=null, description=null, image=null, affiliation=null, deletedAt=null)",
             toString
     )
   }

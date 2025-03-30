@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.devcorp.ops_anime_universe_api.infrastructure.adapter.primary.rest.HealthControllerIntegrationTest
 -------------------------------------------------------------------------------
-Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.043 s -- in com.devcorp.ops_anime_universe_api.infrastructure.adapter.primary.rest.HealthControllerIntegrationTest
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.156 s -- in com.devcorp.ops_anime_universe_api.infrastructure.adapter.primary.rest.HealthControllerIntegrationTest

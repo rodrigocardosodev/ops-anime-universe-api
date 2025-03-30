@@ -1,5 +1,6 @@
 package com.devcorp.ops_anime_universe_api.infrastructure.adapter.secondary.api.dragonball
 
+import com.devcorp.ops_anime_universe_api.infrastructure.config.WebClientConfig
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -11,6 +12,8 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.web.reactive.function.client.WebClient
@@ -19,6 +22,7 @@ class DragonBallApiAdapterTest {
 
         private lateinit var mockWebServer: MockWebServer
         private lateinit var adapter: DragonBallApiAdapter
+        private lateinit var mockWebClientConfig: WebClientConfig
         private val testDispatcher = StandardTestDispatcher()
         private val testScope = TestScope(testDispatcher)
 
@@ -28,8 +32,12 @@ class DragonBallApiAdapterTest {
                 mockWebServer.start()
 
                 val baseUrl = mockWebServer.url("/").toString()
+                val webClientBuilder = WebClient.builder()
 
-                adapter = DragonBallApiAdapter(WebClient.builder(), baseUrl)
+                mockWebClientConfig = mock()
+                whenever(mockWebClientConfig.webClientBuilder()).thenReturn(webClientBuilder)
+
+                adapter = DragonBallApiAdapter(mockWebClientConfig, baseUrl)
         }
 
         @AfterEach
@@ -46,13 +54,13 @@ class DragonBallApiAdapterTest {
             {
                 "items": [
                     {
-                        "id": "1",
+                        "id": 1,
                         "name": "Goku",
                         "ki": "10000",
                         "race": "Saiyan"
                     },
                     {
-                        "id": "2",
+                        "id": 2,
                         "name": "Vegeta",
                         "ki": "9000",
                         "race": "Saiyan"
@@ -83,9 +91,9 @@ class DragonBallApiAdapterTest {
 
                         // Assert
                         assertEquals(2, result.items.size)
-                        assertEquals("1", result.items[0].id)
+                        assertEquals(1, result.items[0].id)
                         assertEquals("Goku", result.items[0].name)
-                        assertEquals("2", result.items[1].id)
+                        assertEquals(2, result.items[1].id)
                         assertEquals("Vegeta", result.items[1].name)
                         assertEquals(100, result.meta.totalItems)
                 }

@@ -4,6 +4,7 @@ import com.devcorp.ops_anime_universe_api.domain.port.spi.DragonBallApiClient
 import com.devcorp.ops_anime_universe_api.infrastructure.adapter.secondary.api.dragonball.dto.DragonBallCharacterResponse
 import com.devcorp.ops_anime_universe_api.infrastructure.adapter.secondary.api.dragonball.dto.DragonBallPageResponse
 import com.devcorp.ops_anime_universe_api.infrastructure.adapter.secondary.api.dragonball.dto.MetaData
+import com.devcorp.ops_anime_universe_api.infrastructure.config.WebClientConfig
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker
 import io.github.resilience4j.retry.annotation.Retry
 import kotlinx.coroutines.Dispatchers
@@ -21,34 +22,34 @@ import org.springframework.web.reactive.function.client.awaitBody
 /** Adaptador para a API do Dragon Ball */
 @Component
 class DragonBallApiAdapter(
-        private val webClientBuilder: WebClient.Builder,
+        private val webClientConfig: WebClientConfig,
         @Value("\${external.api.dragonball.base-url}") private val baseUrl: String
 ) : DragonBallApiClient {
 
   private val logger = LoggerFactory.getLogger(DragonBallApiAdapter::class.java)
 
-  // Inicialização tardia do WebClient com a URL base correta
-  private val webClient: WebClient by lazy {
-    logger.info("Inicializando WebClient para Dragon Ball API com URL base: {}", baseUrl)
-    webClientBuilder.baseUrl(baseUrl).build()
-  }
+  // Criamos um WebClient específico para o Dragon Ball.
+  // Não usamos o lazy aqui para evitar problemas de inicialização
+  private val dragonBallWebClient: WebClient =
+          webClientConfig.webClientBuilder().baseUrl(baseUrl.trim().removeSuffix("/")).build()
 
   @CircuitBreaker(name = "dragonballApi", fallbackMethod = "getCharactersFallback")
   @Retry(name = "dragonballApi")
-  @Cacheable(value = ["dragonball"], key = "#page + '-' + #limit")
+  @Cacheable(value = ["dragonball"], key = "'list-' + #page + '-' + #limit")
   override suspend fun getCharacters(
           page: Int,
           limit: Int
   ): DragonBallPageResponse<DragonBallCharacterResponse> {
     logger.info("Buscando personagens do Dragon Ball: página $page, limite $limit")
+    logger.debug("URL Base: {}, Endpoint: /api/characters", baseUrl)
 
     return withContext(Dispatchers.IO) {
       try {
-        webClient
+        dragonBallWebClient
                 .get()
                 .uri { uriBuilder ->
                   uriBuilder
-                          .path("/characters")
+                          .path("/api/characters")
                           .queryParam("page", page)
                           .queryParam("limit", limit)
                           .build()
@@ -56,7 +57,10 @@ class DragonBallApiAdapter(
                 .retrieve()
                 .awaitBody<DragonBallPageResponse<DragonBallCharacterResponse>>()
       } catch (e: WebClientResponseException) {
-        logger.error("Erro HTTP ${e.statusCode} ao buscar personagens do Dragon Ball", e)
+        logger.error(
+                "Erro HTTP ${e.statusCode} ao buscar personagens do Dragon Ball: ${e.message}",
+                e
+        )
         createEmptyResponse(page, limit)
       } catch (e: Exception) {
         logger.error("Erro ao buscar personagens do Dragon Ball: ${e.message}", e)
@@ -69,9 +73,17 @@ class DragonBallApiAdapter(
   @Retry(name = "dragonballApi")
   override suspend fun isAvailable(): Boolean {
     logger.info("Verificando disponibilidade da API do Dragon Ball")
+    logger.debug("URL Base: {}, Endpoint: /api/characters?limit=1", baseUrl)
+
     return withContext(Dispatchers.IO) {
       try {
-        val response = webClient.get().uri("/characters?limit=1").retrieve().awaitBodilessEntity()
+        val response =
+                dragonBallWebClient
+                        .get()
+                        .uri("/api/characters?limit=1")
+                        .retrieve()
+                        .awaitBodilessEntity()
+        logger.info("Status code da Dragon Ball API: {}", response.statusCode)
         response.statusCode == HttpStatus.OK
       } catch (e: Exception) {
         logger.error("Erro ao verificar disponibilidade da API do Dragon Ball: ${e.message}", e)

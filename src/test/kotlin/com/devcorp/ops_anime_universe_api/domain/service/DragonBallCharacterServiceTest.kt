@@ -47,13 +47,13 @@ class DragonBallCharacterServiceTest {
                                         items =
                                                 listOf(
                                                         DragonBallCharacterResponse(
-                                                                id = "1",
+                                                                id = 1,
                                                                 name = "Goku",
                                                                 ki = "10000",
                                                                 race = "Saiyan"
                                                         ),
                                                         DragonBallCharacterResponse(
-                                                                id = "2",
+                                                                id = 2,
                                                                 name = "Vegeta",
                                                                 ki = "9000",
                                                                 race = "Saiyan"

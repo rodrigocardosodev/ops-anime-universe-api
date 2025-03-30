@@ -31,9 +31,9 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
     // Estimativa de elementos totais - pode ser ajustada conforme necessário
     private const val ESTIMATED_TOTAL_ELEMENTS = 1000L
     // Timeout para operações em millisegundos
-    private const val OPERATION_TIMEOUT_MS = 30000L
-    private const val SERVICE_TIMEOUT_MS = 10000L
-    private const val HEALTH_CHECK_TIMEOUT_MS = 5000L
+    private const val OPERATION_TIMEOUT_MS = 60000L
+    private const val SERVICE_TIMEOUT_MS = 15000L
+    private const val HEALTH_CHECK_TIMEOUT_MS = 10000L
   }
 
   // Escopo de coroutine com SupervisorJob para não propagar falhas entre filhos
@@ -95,10 +95,13 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
                 // Aplica timeout para cada serviço individual
                 withTimeoutOrNull(SERVICE_TIMEOUT_MS) {
                   try {
+                    logger.info(
+                            "Buscando personagens do universo ${service.getUniverse()} - página: $servicePage, tamanho: $serviceSize"
+                    )
                     service.getCharacters(servicePage, serviceSize)
                   } catch (e: Exception) {
                     logger.error(
-                            "Erro ao buscar personagens do universo ${service.getUniverse()}",
+                            "Erro ao buscar personagens do universo ${service.getUniverse()}: ${e.message}",
                             e
                     )
                     emptyList()
@@ -115,7 +118,11 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
 
     // Aguarda os resultados e os combina, ordenando por nome
     return try {
-      deferredResults.awaitAll().flatten().sortedBy { it.name }
+      val results = deferredResults.awaitAll()
+      logger.info(
+              "Resultados obtidos de todos os serviços: total de listas ${results.size}, com ${results.sumOf { it.size }} personagens"
+      )
+      results.flatten().sortedBy { it.name }
     } catch (e: Exception) {
       logger.error("Erro ao aguardar resultados dos serviços: ${e.message}", e)
       emptyList()
@@ -182,4 +189,13 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
     val serviceOffset = (globalOffset + serviceIndex * serviceSize) / serviceSize
     return serviceOffset.coerceAtLeast(0)
   }
+}
+
+/** Classe para representar uma página de resultados */
+data class Page<T>(val content: List<T>, val page: Int, val size: Int, val totalElements: Long) {
+  val totalPages: Int = Math.ceil(totalElements.toDouble() / size).toInt().coerceAtLeast(1)
+  val isFirst: Boolean = page <= 0
+  val isLast: Boolean = page >= totalPages - 1
+  val hasNext: Boolean = !isLast
+  val hasPrevious: Boolean = !isFirst
 }

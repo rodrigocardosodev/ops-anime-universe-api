@@ -4,29 +4,54 @@ import com.devcorp.ops_anime_universe_api.domain.model.Character
 import com.devcorp.ops_anime_universe_api.domain.model.Universe
 import com.devcorp.ops_anime_universe_api.domain.port.api.CharacterService
 import com.devcorp.ops_anime_universe_api.domain.port.spi.DragonBallApiClient
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
-/** Implementação do serviço de personagens do Dragon Ball */
-<span class="fc" id="L10">@Service</span>
-<span class="fc" id="L11">class DragonBallCharacterService(private val dragonBallApiClient: DragonBallApiClient) :</span>
+/** Serviço para obter personagens do universo Dragon Ball */
+<span class="fc" id="L11">@Service</span>
+<span class="fc" id="L12">class DragonBallCharacterService(private val dragonBallApiClient: DragonBallApiClient) :</span>
         CharacterService {
 
-<span class="fc" id="L14">  override fun getUniverse(): Universe = Universe.DRAGON_BALL</span>
+<span class="fc" id="L15">  private val logger = LoggerFactory.getLogger(DragonBallCharacterService::class.java)</span>
 
-<span class="fc" id="L16">  override suspend fun getCharacters(page: Int, size: Int): List&lt;Character&gt; {</span>
-<span class="fc" id="L17">    val response =</span>
-<span class="fc" id="L18">            dragonBallApiClient.getCharacters(</span>
-<span class="fc" id="L19">                    page + 1,</span>
-<span class="fc" id="L20">                    size</span>
-            ) // API do Dragon Ball começa com página 1
+  override fun getUniverse(): Universe {
+<span class="fc" id="L18">    return Universe.DRAGON_BALL</span>
+  }
 
-<span class="fc" id="L23">    return response.items.map { character -&gt;</span>
-<span class="fc" id="L24">      Character(id = character.id, name = character.name, universe = Universe.DRAGON_BALL)</span>
+<span class="fc" id="L21">  override suspend fun getCharacters(page: Int, size: Int): List&lt;Character&gt; {</span>
+    // Verificando parâmetros de paginação
+<span class="fc" id="L23">    val validPage = page.coerceAtLeast(0)</span>
+<span class="fc" id="L24">    val validSize = size.coerceIn(1, 50) // Limita o tamanho entre 1 e 50</span>
+
+<span class="fc" id="L26">    logger.info(&quot;Buscando personagens do Dragon Ball na página $validPage com tamanho $validSize&quot;)</span>
+
+<span class="fc" id="L28">    return try {</span>
+<span class="fc" id="L29">      val response =</span>
+<span class="fc" id="L30">              dragonBallApiClient.getCharacters(</span>
+<span class="fc" id="L31">                      validPage + 1,</span>
+<span class="fc" id="L32">                      validSize</span>
+              ) // API do Dragon Ball começa com página 1
+
+<span class="fc" id="L35">      response.items.map { character -&gt;</span>
+<span class="fc" id="L36">        Character(</span>
+<span class="fc" id="L37">                id = character.id.toString(),</span>
+<span class="fc" id="L38">                name = character.name,</span>
+<span class="fc" id="L39">                universe = Universe.DRAGON_BALL</span>
+        )
+      }
+<span class="fc" id="L42">    } catch (e: Exception) {</span>
+<span class="fc" id="L43">      logger.error(&quot;Erro ao buscar personagens do Dragon Ball: ${e.message}&quot;, e)</span>
+<span class="fc" id="L44">      throw e // Deixamos a exeção propagar para garantir resiliência no nível superior</span>
     }
   }
 
   override suspend fun isAvailable(): Boolean {
-<span class="fc" id="L29">    return dragonBallApiClient.isAvailable()</span>
+<span class="fc" id="L49">    return try {</span>
+<span class="fc" id="L50">      dragonBallApiClient.isAvailable()</span>
+<span class="fc" id="L51">    } catch (e: Exception) {</span>
+<span class="fc" id="L52">      logger.error(&quot;Erro ao verificar disponibilidade da API do Dragon Ball: ${e.message}&quot;, e)</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">      throw e</span>
+    }
   }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

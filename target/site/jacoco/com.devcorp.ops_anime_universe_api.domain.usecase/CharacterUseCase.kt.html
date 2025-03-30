@@ -31,9 +31,9 @@ import org.springframework.stereotype.Component
     // Estimativa de elementos totais - pode ser ajustada conforme necessário
     private const val ESTIMATED_TOTAL_ELEMENTS = 1000L
     // Timeout para operações em millisegundos
-    private const val OPERATION_TIMEOUT_MS = 30000L
-    private const val SERVICE_TIMEOUT_MS = 10000L
-    private const val HEALTH_CHECK_TIMEOUT_MS = 5000L
+    private const val OPERATION_TIMEOUT_MS = 60000L
+    private const val SERVICE_TIMEOUT_MS = 15000L
+    private const val HEALTH_CHECK_TIMEOUT_MS = 10000L
   }
 
   // Escopo de coroutine com SupervisorJob para não propagar falhas entre filhos
@@ -69,7 +69,7 @@ import org.springframework.stereotype.Component
   }
 
   /** Busca personagens de todos os serviços com distribuição balanceada */
-  private suspend fun fetchCharactersFromAllServices(
+<span class="fc" id="L72">  private suspend fun fetchCharactersFromAllServices(</span>
           scope: CoroutineScope,
           page: Int,
           size: Int
@@ -88,37 +88,44 @@ import org.springframework.stereotype.Component
 <span class="fc" id="L88">    val deferredResults =</span>
 <span class="fc" id="L89">            characterServices.mapIndexed { index, service -&gt;</span>
 <span class="fc" id="L90">              scope.async {</span>
-<span class="pc bpc" id="L91" title="1 of 2 branches missed.">                val serviceSize = charactersPerService + if (index &lt; remainder) 1 else 0</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">                val serviceSize = charactersPerService + if (index &lt; remainder) 1 else 0</span>
 <span class="fc" id="L92">                val servicePage =</span>
 <span class="fc" id="L93">                        calculateServicePage(page, size, serviceSize, index, servicesCount)</span>
 
                 // Aplica timeout para cada serviço individual
 <span class="fc bfc" id="L96" title="All 2 branches covered.">                withTimeoutOrNull(SERVICE_TIMEOUT_MS) {</span>
 <span class="fc" id="L97">                  try {</span>
-<span class="fc" id="L98">                    service.getCharacters(servicePage, serviceSize)</span>
-<span class="fc" id="L99">                  } catch (e: Exception) {</span>
-<span class="fc" id="L100">                    logger.error(</span>
-<span class="fc" id="L101">                            &quot;Erro ao buscar personagens do universo ${service.getUniverse()}&quot;,</span>
-<span class="fc" id="L102">                            e</span>
+<span class="fc" id="L98">                    logger.info(</span>
+<span class="fc" id="L99">                            &quot;Buscando personagens do universo ${service.getUniverse()} - página: $servicePage, tamanho: $serviceSize&quot;</span>
                     )
-<span class="fc" id="L104">                    emptyList()</span>
+<span class="fc" id="L101">                    service.getCharacters(servicePage, serviceSize)</span>
+<span class="fc" id="L102">                  } catch (e: Exception) {</span>
+<span class="fc" id="L103">                    logger.error(</span>
+<span class="fc" id="L104">                            &quot;Erro ao buscar personagens do universo ${service.getUniverse()}: ${e.message}&quot;,</span>
+<span class="fc" id="L105">                            e</span>
+                    )
+<span class="fc" id="L107">                    emptyList()</span>
                   }
                 }
-<span class="fc" id="L107">                        ?: run {</span>
-<span class="fc" id="L108">                          logger.warn(</span>
-<span class="fc" id="L109">                                  &quot;Timeout ao buscar personagens do universo ${service.getUniverse()}&quot;</span>
+<span class="fc" id="L110">                        ?: run {</span>
+<span class="fc" id="L111">                          logger.warn(</span>
+<span class="fc" id="L112">                                  &quot;Timeout ao buscar personagens do universo ${service.getUniverse()}&quot;</span>
                           )
-<span class="fc" id="L111">                          emptyList()</span>
+<span class="fc" id="L114">                          emptyList()</span>
                         }
               }
             }
 
     // Aguarda os resultados e os combina, ordenando por nome
-<span class="fc" id="L117">    return try {</span>
-<span class="fc" id="L118">      deferredResults.awaitAll().flatten().sortedBy { it.name }</span>
-<span class="nc" id="L119">    } catch (e: Exception) {</span>
-<span class="nc" id="L120">      logger.error(&quot;Erro ao aguardar resultados dos serviços: ${e.message}&quot;, e)</span>
-<span class="pc" id="L121">      emptyList()</span>
+<span class="fc" id="L120">    return try {</span>
+<span class="fc" id="L121">      val results = deferredResults.awaitAll()</span>
+<span class="fc" id="L122">      logger.info(</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">              &quot;Resultados obtidos de todos os serviços: total de listas ${results.size}, com ${results.sumOf { it.size }} personagens&quot;</span>
+      )
+<span class="fc" id="L125">      results.flatten().sortedBy { it.name }</span>
+<span class="nc" id="L126">    } catch (e: Exception) {</span>
+<span class="nc" id="L127">      logger.error(&quot;Erro ao aguardar resultados dos serviços: ${e.message}&quot;, e)</span>
+<span class="pc" id="L128">      emptyList()</span>
     }
   }
 
@@ -128,41 +135,41 @@ import org.springframework.stereotype.Component
    * @return Mapa com os nomes dos serviços e seus status
    */
   suspend fun checkServicesAvailability(): Map&lt;String, Status&gt; {
-<span class="fc" id="L131">    logger.info(&quot;Verificando disponibilidade dos serviços&quot;)</span>
+<span class="fc" id="L138">    logger.info(&quot;Verificando disponibilidade dos serviços&quot;)</span>
 
-<span class="fc" id="L133">    return coroutineScope {</span>
-<span class="fc" id="L134">      try {</span>
-<span class="fc" id="L135">        val deferredResults =</span>
-<span class="fc" id="L136">                characterServices.map { service -&gt;</span>
-<span class="fc" id="L137">                  async(Dispatchers.IO) {</span>
+<span class="fc" id="L140">    return coroutineScope {</span>
+<span class="fc" id="L141">      try {</span>
+<span class="fc" id="L142">        val deferredResults =</span>
+<span class="fc" id="L143">                characterServices.map { service -&gt;</span>
+<span class="fc" id="L144">                  async(Dispatchers.IO) {</span>
                     // Aplica timeout para cada verificação
-<span class="pc bpc" id="L139" title="1 of 2 branches missed.">                    withTimeoutOrNull(HEALTH_CHECK_TIMEOUT_MS) { checkServiceAvailability(service) }</span>
-<span class="nc" id="L140">                            ?: (service.getUniverse().name to Status.DOWN)</span>
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">                    withTimeoutOrNull(HEALTH_CHECK_TIMEOUT_MS) { checkServiceAvailability(service) }</span>
+<span class="nc" id="L147">                            ?: (service.getUniverse().name to Status.DOWN)</span>
                   }
                 }
 
-<span class="fc" id="L144">        deferredResults.awaitAll().toMap()</span>
-<span class="nc" id="L145">      } catch (e: Exception) {</span>
-<span class="nc" id="L146">        logger.error(&quot;Erro ao verificar disponibilidade dos serviços: ${e.message}&quot;, e)</span>
-<span class="nc" id="L147">        characterServices.associate { it.getUniverse().name to Status.UNKNOWN }</span>
+<span class="fc" id="L151">        deferredResults.awaitAll().toMap()</span>
+<span class="nc" id="L152">      } catch (e: Exception) {</span>
+<span class="nc" id="L153">        logger.error(&quot;Erro ao verificar disponibilidade dos serviços: ${e.message}&quot;, e)</span>
+<span class="nc" id="L154">        characterServices.associate { it.getUniverse().name to Status.UNKNOWN }</span>
       }
     }
   }
 
   /** Verifica a disponibilidade de um serviço específico */
   private suspend fun checkServiceAvailability(service: CharacterService): Pair&lt;String, Status&gt; {
-<span class="fc" id="L154">    val universe = service.getUniverse()</span>
-<span class="fc" id="L155">    val available =</span>
-<span class="fc" id="L156">            try {</span>
-<span class="fc" id="L157">              service.isAvailable()</span>
-<span class="fc" id="L158">            } catch (e: Exception) {</span>
-<span class="fc" id="L159">              logger.error(</span>
-<span class="fc" id="L160">                      &quot;Erro ao verificar disponibilidade do serviço ${universe.name}: ${e.message}&quot;,</span>
-<span class="fc" id="L161">                      e</span>
+<span class="fc" id="L161">    val universe = service.getUniverse()</span>
+<span class="fc" id="L162">    val available =</span>
+<span class="fc" id="L163">            try {</span>
+<span class="fc" id="L164">              service.isAvailable()</span>
+<span class="fc" id="L165">            } catch (e: Exception) {</span>
+<span class="fc" id="L166">              logger.error(</span>
+<span class="fc" id="L167">                      &quot;Erro ao verificar disponibilidade do serviço ${universe.name}: ${e.message}&quot;,</span>
+<span class="fc" id="L168">                      e</span>
               )
-<span class="fc" id="L163">              false</span>
+<span class="fc" id="L170">              false</span>
             }
-<span class="fc bfc" id="L165" title="All 2 branches covered.">    return universe.name to if (available) Status.UP else Status.DOWN</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">    return universe.name to if (available) Status.UP else Status.DOWN</span>
   }
 
   /**
@@ -176,11 +183,20 @@ import org.springframework.stereotype.Component
           serviceIndex: Int,
           servicesCount: Int
   ): Int {
-<span class="pc bpc" id="L179" title="1 of 2 branches missed.">    if (serviceSize &lt;= 0) return 0</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">    if (serviceSize &lt;= 0) return 0</span>
 
-<span class="fc" id="L181">    val globalOffset = page * pageSize</span>
-<span class="fc" id="L182">    val serviceOffset = (globalOffset + serviceIndex * serviceSize) / serviceSize</span>
-<span class="fc" id="L183">    return serviceOffset.coerceAtLeast(0)</span>
+<span class="fc" id="L188">    val globalOffset = page * pageSize</span>
+<span class="fc" id="L189">    val serviceOffset = (globalOffset + serviceIndex * serviceSize) / serviceSize</span>
+<span class="fc" id="L190">    return serviceOffset.coerceAtLeast(0)</span>
   }
+}
+
+/** Classe para representar uma página de resultados */
+<span class="nc" id="L195">data class Page&lt;T&gt;(val content: List&lt;T&gt;, val page: Int, val size: Int, val totalElements: Long) {</span>
+<span class="nc" id="L196">  val totalPages: Int = Math.ceil(totalElements.toDouble() / size).toInt().coerceAtLeast(1)</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">  val isFirst: Boolean = page &lt;= 0</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">  val isLast: Boolean = page &gt;= totalPages - 1</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">  val hasNext: Boolean = !isLast</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">  val hasPrevious: Boolean = !isFirst</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

@@ -5,6 +5,7 @@ import com.devcorp.ops_anime_universe_api.infrastructure.adapter.secondary.api.p
 import com.devcorp.ops_anime_universe_api.infrastructure.adapter.secondary.api.pokemon.dto.PokemonDetailResponse
 import com.devcorp.ops_anime_universe_api.infrastructure.adapter.secondary.api.pokemon.dto.PokemonPageResponse
 import com.devcorp.ops_anime_universe_api.infrastructure.adapter.secondary.api.pokemon.dto.PokemonSprites
+import com.devcorp.ops_anime_universe_api.infrastructure.config.WebClientConfig
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker
 import io.github.resilience4j.retry.annotation.Retry
 import org.slf4j.LoggerFactory
@@ -20,16 +21,18 @@ import org.springframework.web.reactive.function.client.awaitBody
 /** Adaptador para a PokeAPI */
 @Component
 class PokemonApiAdapter(
-        private val webClientBuilder: WebClient.Builder,
+        private val webClientConfig: WebClientConfig,
         @Value("\${external.api.pokemon.base-url}") private val baseUrl: String
 ) : PokemonApiClient {
 
     private val logger = LoggerFactory.getLogger(PokemonApiAdapter::class.java)
 
-    // Inicialização tardia do WebClient com a URL base correta
-    private val webClient: WebClient by lazy {
-        logger.info("Inicializando WebClient para PokeAPI com URL base: {}", baseUrl)
-        webClientBuilder.baseUrl(baseUrl).build()
+    // Criamos um WebClient específico para o Pokemon.
+    // Não usamos o lazy aqui para evitar problemas de inicialização
+    private val pokemonWebClient: WebClient = run {
+        val url = baseUrl.trim().removeSuffix("/")
+        logger.debug("Inicializando WebClient para PokeAPI com URL base: {}", url)
+        webClientConfig.webClientBuilder().baseUrl(url).build()
     }
 
     @CircuitBreaker(name = "pokemonApi", fallbackMethod = "getPokemonsFallback")
@@ -37,8 +40,10 @@ class PokemonApiAdapter(
     @Cacheable(value = ["pokemon"], key = "'list-' + #offset + '-' + #limit")
     override suspend fun getPokemons(offset: Int, limit: Int): PokemonPageResponse {
         logger.info("Buscando pokemons: offset $offset, limite $limit")
+        logger.debug("URL Base: {}, Endpoint: /pokemon", baseUrl)
+
         return try {
-            webClient
+            pokemonWebClient
                     .get()
                     .uri { uriBuilder ->
                         uriBuilder
@@ -50,10 +55,10 @@ class PokemonApiAdapter(
                     .retrieve()
                     .awaitBody<PokemonPageResponse>()
         } catch (e: WebClientResponseException) {
-            logger.error("Erro HTTP ${e.statusCode} ao buscar lista de pokemons", e)
+            logger.error("Erro HTTP ${e.statusCode} ao buscar lista de pokemons: ${e.message}", e)
             createEmptyPageResponse()
         } catch (e: Exception) {
-            logger.error("Erro ao buscar lista de pokemons", e)
+            logger.error("Erro ao buscar lista de pokemons: ${e.message}", e)
             createEmptyPageResponse()
         }
     }
@@ -63,17 +68,22 @@ class PokemonApiAdapter(
     @Cacheable(value = ["pokemon"], key = "'detail-' + #name")
     override suspend fun getPokemonByName(name: String): PokemonDetailResponse {
         logger.info("Buscando detalhes do pokemon: $name")
+        logger.debug("URL Base: {}, Endpoint: /pokemon/{}", baseUrl, name)
+
         return try {
-            webClient
+            pokemonWebClient
                     .get()
                     .uri("/pokemon/{name}", name)
                     .retrieve()
                     .awaitBody<PokemonDetailResponse>()
         } catch (e: WebClientResponseException) {
-            logger.error("Erro HTTP ${e.statusCode} ao buscar detalhes do pokemon $name", e)
+            logger.error(
+                    "Erro HTTP ${e.statusCode} ao buscar detalhes do pokemon $name: ${e.message}",
+                    e
+            )
             createEmptyDetailResponse(name)
         } catch (e: Exception) {
-            logger.error("Erro ao buscar detalhes do pokemon $name", e)
+            logger.error("Erro ao buscar detalhes do pokemon $name: ${e.message}", e)
             createEmptyDetailResponse(name)
         }
     }
@@ -82,28 +92,35 @@ class PokemonApiAdapter(
     @Retry(name = "pokemonApi")
     override suspend fun isAvailable(): Boolean {
         logger.info("Verificando disponibilidade da PokeAPI")
+        logger.debug("URL Base: {}, Endpoint: /pokemon?limit=1", baseUrl)
+
         return try {
-            val response = webClient.get().uri("/pokemon?limit=1").retrieve().awaitBodilessEntity()
+            val response =
+                    pokemonWebClient.get().uri("/pokemon?limit=1").retrieve().awaitBodilessEntity()
+            logger.info("Status code da PokeAPI: {}", response.statusCode)
             response.statusCode == HttpStatus.OK
         } catch (e: Exception) {
-            logger.error("Erro ao verificar disponibilidade da PokeAPI", e)
+            logger.error("Erro ao verificar disponibilidade da PokeAPI: {}", e.message)
             false
         }
     }
 
     // Métodos de fallback
     suspend fun getPokemonsFallback(offset: Int, limit: Int, e: Exception): PokemonPageResponse {
-        logger.warn("Fallback acionado para getPokemons com offset $offset e limite $limit", e)
+        logger.warn(
+                "Fallback acionado para getPokemons com offset $offset e limite $limit: ${e.message}",
+                e
+        )
         return createEmptyPageResponse()
     }
 
     suspend fun getPokemonByNameFallback(name: String, e: Exception): PokemonDetailResponse {
-        logger.warn("Fallback acionado para getPokemonByName com nome $name", e)
+        logger.warn("Fallback acionado para getPokemonByName com nome $name: ${e.message}", e)
         return createEmptyDetailResponse(name)
     }
 
     suspend fun isAvailableFallback(e: Exception): Boolean {
-        logger.warn("Fallback acionado para isAvailable", e)
+        logger.warn("Fallback acionado para isAvailable: ${e.message}", e)
         return false
     }
 
