@@ -41,7 +41,7 @@ class DragonBallCharacterService(private val dragonBallApiClient: DragonBallApiC
       }
     } catch (e: Exception) {
       logger.error("Erro ao buscar personagens do Dragon Ball: ${e.message}", e)
-      throw e // Deixamos a exeção propagar para garantir resiliência no nível superior
+      throw e // Deixamos a exceção propagar para garantir resiliência no nível superior
     }
   }
 
