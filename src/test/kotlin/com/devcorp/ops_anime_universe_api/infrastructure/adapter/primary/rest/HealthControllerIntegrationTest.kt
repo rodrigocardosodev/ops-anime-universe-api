@@ -55,7 +55,7 @@ class HealthControllerIntegrationTest {
                         // Act & Assert
                         webTestClient
                                 .get()
-                                .uri("/health")
+                                .uri("/api/health")
                                 .exchange()
                                 .expectStatus()
                                 .isOk
@@ -86,7 +86,7 @@ class HealthControllerIntegrationTest {
                         // Act & Assert
                         webTestClient
                                 .get()
-                                .uri("/health")
+                                .uri("/api/health")
                                 .exchange()
                                 .expectStatus()
                                 .isOk
@@ -117,7 +117,7 @@ class HealthControllerIntegrationTest {
                         // Act & Assert
                         webTestClient
                                 .get()
-                                .uri("/health")
+                                .uri("/api/health")
                                 .exchange()
                                 .expectStatus()
                                 .isOk

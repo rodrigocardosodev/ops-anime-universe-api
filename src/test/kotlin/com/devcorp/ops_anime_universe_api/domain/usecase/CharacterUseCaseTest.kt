@@ -150,8 +150,9 @@ class CharacterUseCaseTest {
         fun `checkServicesAvailability should handle errors from services`() =
                 testScope.runTest {
                         // Arrange
-                        whenever(dragonBallService.isAvailable())
-                                .thenThrow(RuntimeException("API error"))
+                        whenever(dragonBallService.isAvailable()).thenAnswer {
+                                throw RuntimeException("API error")
+                        }
                         whenever(pokemonService.isAvailable()).thenReturn(true)
 
                         // Act
@@ -294,11 +295,10 @@ class CharacterUseCaseTest {
                         // Arrange
                         whenever(dragonBallService.isAvailable()).thenReturn(true)
 
-                        // Simulando um timeout na verificação do serviço Pokemon
-                        whenever(pokemonService.isAvailable()).thenAnswer {
-                                // Simulando um timeout sem usar delay()
-                                throw RuntimeException("Simulando timeout")
-                        }
+                        // Usando doAnswer em vez de thenAnswer para um controle mais preciso
+                        doAnswer { throw RuntimeException("Simulando timeout") }
+                                .whenever(pokemonService)
+                                .isAvailable()
 
                         // Act
                         val result = characterUseCase.checkServicesAvailability()
@@ -491,18 +491,18 @@ class CharacterUseCaseTest {
                         val service: CharacterService = mock()
                         whenever(service.getUniverse()).thenReturn(Universe.POKEMON)
 
-                        // Configuramos o mock para lançar exceção que simulará um timeout no
-                        // withTimeoutOrNull
-                        whenever(service.isAvailable()).thenAnswer {
-                                throw TimeoutException("Timeout ao verificar disponibilidade")
-                        }
+                        // Usando doAnswer em vez de whenever para melhor controle da exceção
+                        doAnswer { throw TimeoutException("Timeout ao verificar disponibilidade") }
+                                .whenever(service)
+                                .isAvailable()
 
                         val testUseCase = CharacterUseCase(listOf(service))
 
                         // Act
                         val result = testUseCase.checkServicesAvailability()
 
-                        // Assert - deve ter o status DOWN para o serviço que teve timeout
+                        // Assert
+                        assertEquals(1, result.size)
                         assertEquals(Status.DOWN, result[Universe.POKEMON.name])
                 }
 

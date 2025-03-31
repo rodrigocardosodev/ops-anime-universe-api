@@ -196,7 +196,7 @@ class DragonBallApiAdapterTest {
                 }
 
         @Test
-        fun `isAvailable should handle network exceptions`() =
+        fun `getCharacters should handle network exceptions`() =
                 testScope.runTest {
                         // Arrange
                         val response =
@@ -204,28 +204,62 @@ class DragonBallApiAdapterTest {
                         mockWebServer.enqueue(response)
 
                         // Act
-                        val result = adapter.isAvailable()
+                        val result = adapter.getCharacters(1, 10)
 
                         // Assert
-                        assertFalse(result)
+                        assertTrue(result.items.isEmpty())
                 }
 
         @Test
-        fun `getCharacters should return special first characters for page 0 and size 10`() =
+        fun `getCharacters should properly handle page 0 with normal API response`() =
                 testScope.runTest {
-                        // Act - testamos especificamente com página 0 e tamanho 10
+                        // Arrange - mockando resposta normal da API para página 0
+                        val mockJson =
+                                """
+      {
+          "items": [
+              {
+                  "id": 1,
+                  "name": "Goku",
+                  "ki": "10000",
+                  "race": "Saiyan"
+              },
+              {
+                  "id": 2,
+                  "name": "Vegeta",
+                  "ki": "9000",
+                  "race": "Saiyan"
+              }
+          ],
+          "meta": {
+              "totalItems": 100,
+              "itemCount": 2,
+              "itemsPerPage": 10,
+              "totalPages": 50,
+              "currentPage": 1
+          }
+      }
+  """.trimIndent()
+
+                        val response =
+                                MockResponse()
+                                        .setResponseCode(200)
+                                        .setHeader(
+                                                HttpHeaders.CONTENT_TYPE,
+                                                MediaType.APPLICATION_JSON_VALUE
+                                        )
+                                        .setBody(mockJson)
+
+                        mockWebServer.enqueue(response)
+
+                        // Act - usando página 0, que agora usa o comportamento padrão
                         val result = adapter.getCharacters(0, 10)
 
-                        // Assert - verifica que retorna 5 personagens específicos
-                        assertEquals(5, result.items.size)
+                        // Assert - verificando que retorna os dados da API normalmente
+                        assertEquals(2, result.items.size)
+                        assertEquals(1, result.items[0].id)
                         assertEquals("Goku", result.items[0].name)
-
-                        // Verificando que contém os personagens especiais para page 0
-                        val names = result.items.map { it.name }
-                        assertTrue(names.contains("Goku"))
-                        assertTrue(names.contains("Vegeta"))
-                        assertTrue(names.contains("Piccolo"))
-                        assertTrue(names.contains("Bulma"))
-                        assertTrue(names.contains("Freezer"))
+                        assertEquals(2, result.items[1].id)
+                        assertEquals("Vegeta", result.items[1].name)
                 }
 }

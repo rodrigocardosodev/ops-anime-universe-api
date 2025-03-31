@@ -1,8 +1,8 @@
 package com.devcorp.ops_anime_universe_api.infrastructure.adapter.primary.rest
 
-import com.devcorp.ops_anime_universe_api.domain.usecase.CharacterUseCase
 import com.devcorp.ops_anime_universe_api.domain.model.HealthStatus
 import com.devcorp.ops_anime_universe_api.domain.model.Status
+import com.devcorp.ops_anime_universe_api.domain.usecase.CharacterUseCase
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController
 
 /** Controlador para o endpoint de health check */
 @RestController
-@RequestMapping("/health")
+@RequestMapping("/api/health")
 class HealthController(private val characterUseCase: CharacterUseCase) {
   /**
    * Endpoint para verificar o status de saúde da aplicação

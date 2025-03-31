@@ -405,40 +405,36 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
         val deferredResults =
                 characterServices.map { service ->
                   async(Dispatchers.IO) {
-                    // Aplica timeout para cada verificação
-                    withTimeoutOrNull(HEALTH_CHECK_TIMEOUT_MS) { checkServiceAvailability(service) }
-                            ?: (service.getUniverse().name to Status.DOWN)
+                    try {
+                      // Captura exceções dentro do async para não propagar para o awaitAll
+                      // Aplica timeout para cada verificação
+                      withTimeoutOrNull(HEALTH_CHECK_TIMEOUT_MS) {
+                        service.getUniverse().name to
+                                if (service.isAvailable()) Status.UP else Status.DOWN
+                      }
+                              ?: (service.getUniverse().name to Status.DOWN)
+                    } catch (e: Exception) {
+                      // Se qualquer exceção ocorrer, retorna DOWN para o serviço
+                      logger.warn("Exceção no serviço ${service.getUniverse().name}: ${e.message}")
+                      service.getUniverse().name to Status.DOWN
+                    }
                   }
                 }
 
+        // awaitAll deve sempre retornar, mesmo com exceções em alguns deferreds
         deferredResults.awaitAll().toMap()
       } catch (e: Exception) {
         logger.error("Erro ao verificar disponibilidade dos serviços: ${e.message}", e)
+        // Retorna status UNKNOWN para todos os serviços em caso de erro global
         characterServices.associate { it.getUniverse().name to Status.UNKNOWN }
       }
     }
   }
 
-  /** Verifica a disponibilidade de um serviço específico */
-  private suspend fun checkServiceAvailability(service: CharacterService): Pair<String, Status> {
-    val universe = service.getUniverse()
-    val available =
-            try {
-              service.isAvailable()
-            } catch (e: Exception) {
-              logger.error(
-                      "Erro ao verificar disponibilidade do serviço ${universe.name}: ${e.message}",
-                      e
-              )
-              false
-            }
-    return universe.name to if (available) Status.UP else Status.DOWN
-  }
-
   /**
-   * Retorna os personagens paginados e agrupados por universo.
+   * Retorna os personagens agrupados por universo.
    * @param page Número da página, começando em 0
-   * @param size Tamanho da página para cada universo (quantidade de personagens por universo)
+   * @param size Tamanho da página para cada universo
    * @return GroupedPageResponse com os personagens agrupados por universo
    */
   suspend fun getGroupedCharacters(page: Int, size: Int): GroupedPageResponse {
@@ -448,14 +444,6 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
     val validPage = page.coerceAtLeast(0)
     val validSize = size.coerceIn(1, 25)
 
-    // Usamos os valores reais das APIs externas para calcular o total de elementos
-    val dragonBallTotalElements = DRAGON_BALL_TOTAL_ELEMENTS
-    val pokemonTotalElements = POKEMON_TOTAL_ELEMENTS
-
-    logger.info(
-            "Total de personagens: Dragon Ball=$dragonBallTotalElements, Pokémon=$pokemonTotalElements"
-    )
-
     // Obtém os personagens paginados para cada universo
     val dragonBallCharacters = createPagedCharacters(Universe.DRAGON_BALL, validPage, validSize)
     val pokemonCharacters = createPagedCharacters(Universe.POKEMON, validPage, validSize)
@@ -464,15 +452,12 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
             "Resultados agrupados obtidos: ${dragonBallCharacters.size} personagens de Dragon Ball e ${pokemonCharacters.size} de Pokémon"
     )
 
-    // Calculamos o número total de páginas para cada universo baseado no total de elementos e
-    // tamanho da página
-    // Isso garante que quando o tamanho da página aumenta, o número de páginas diminui
-    // proporcionalmente
-    val dragonBallTotalPages = Math.ceil(dragonBallTotalElements.toDouble() / validSize).toInt()
-    val pokemonTotalPages = Math.ceil(pokemonTotalElements.toDouble() / validSize).toInt()
+    // Calculamos o número total de páginas para cada universo
+    val dragonBallTotalPages = Math.ceil(DRAGON_BALL_TOTAL_ELEMENTS.toDouble() / validSize).toInt()
+    val pokemonTotalPages = Math.ceil(POKEMON_TOTAL_ELEMENTS.toDouble() / validSize).toInt()
 
     // Total de elementos é a soma dos dois universos
-    val totalElements = dragonBallTotalElements + pokemonTotalElements
+    val totalElements = DRAGON_BALL_TOTAL_ELEMENTS + POKEMON_TOTAL_ELEMENTS
 
     // Calculamos o número total de páginas considerando os elementos de ambos os universos
     val totalPages = Math.ceil(totalElements.toDouble() / (validSize * 2)).toInt()
@@ -484,8 +469,8 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
             validPage,
             validSize,
             totalElements,
-            dragonBallTotalElements,
-            pokemonTotalElements,
+            DRAGON_BALL_TOTAL_ELEMENTS,
+            POKEMON_TOTAL_ELEMENTS,
             totalPages,
             dragonBallTotalPages,
             pokemonTotalPages
@@ -511,7 +496,7 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
             when (universe) {
               Universe.DRAGON_BALL -> DRAGON_BALL_TOTAL_ELEMENTS.toInt()
               Universe.POKEMON -> POKEMON_TOTAL_ELEMENTS.toInt()
-              else -> 25
+              else -> 0
             }
 
     // Verifica se estamos fora dos limites - se página inicial excede total, retorna vazio
@@ -519,44 +504,28 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
       return emptyList()
     }
 
-    // Lista para guardar os personagens
-    val result = mutableListOf<Character>()
-
-    // Calcula quantos personagens realmente precisamos gerar
-    val longStartIndex = startIndex.toLong()
-    val longValidSize = validSize.toLong()
-
-    // Verifica novamente após conversão para Long (garantia adicional)
-    if (longStartIndex >= totalElementsForUniverse) {
-      return emptyList()
-    }
-
     // Calcula o índice final, garantindo que não ultrapasse o total disponível
-    val endIndex = minOf(longStartIndex + longValidSize, totalElementsForUniverse.toLong())
+    val endIndex = minOf(startIndex.toLong() + validSize, totalElementsForUniverse.toLong())
 
     // Verifica se temos algum item para retornar
-    if (longStartIndex >= endIndex) {
+    if (startIndex >= endIndex) {
       return emptyList()
     }
 
-    // Gera personagens com IDs sequenciais reais (sem reciclagem circular)
-    for (i in longStartIndex until endIndex) {
+    // Gera personagens com IDs sequenciais
+    return (startIndex until endIndex).map { i ->
       // Para cada personagem, calculamos seu ID real começando em 1
       val id = i + 1
 
       val name =
               when (universe) {
                 Universe.DRAGON_BALL -> {
-                  // Para Dragon Ball, continuamos usando a lógica de nomes circular com 25 nomes
+                  // Para Dragon Ball, usamos a lógica de nomes circular com 25 nomes
                   val effectiveNameId = ((id - 1) % 25) + 1
                   getDragonBallName(effectiveNameId.toInt())
                 }
                 Universe.POKEMON -> {
-                  // Para Pokémon, vamos calcular o número efetivo da Pokédex
-                  // Isso permite que tenhamos correspondência com a Pokédex real
-                  // independentemente da página
-                  // Se o id real do Pokémon (1-1302) for menor ou igual a 151,
-                  // usamos o nome específico da Pokédex
+                  // Para Pokémon, calculamos o número efetivo da Pokédex
                   val pokedexNumber = ((id - 1) % 151) + 1
                   getPokemonName(pokedexNumber.toInt())
                 }
@@ -564,10 +533,8 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
               }
 
       // Criamos o personagem com o ID real e o nome
-      result.add(Character(id = id.toString(), name = name, universe = universe))
+      Character(id = id.toString(), name = name, universe = universe)
     }
-
-    return result
   }
 
   /** Retorna o nome de um personagem de Dragon Ball com base no ID. */

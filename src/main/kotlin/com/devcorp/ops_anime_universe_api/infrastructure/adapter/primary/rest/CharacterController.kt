@@ -43,7 +43,7 @@ class CharacterController(private val characterUseCase: CharacterUseCase) {
                 // Se size > 50, retornaremos exatamente 50 elementos, mas com size = 50 no response
                 val finalSize = if (adjustedSize > 50) 50 else adjustedSize
 
-                // Utilizamos o método de busca agrupada diretamente
+                // Obtém os personagens agrupados
                 val result = characterUseCase.getGroupedCharacters(page, adjustedSize)
 
                 val dragonballSize = result.content["dragonball"]?.size ?: 0
@@ -71,34 +71,6 @@ class CharacterController(private val characterUseCase: CharacterUseCase) {
                         "Retornando ${dragonballSize + pokemonSize} personagens (${dragonballSize} Dragon Ball, ${pokemonSize} Pokémon)"
                 )
                 return ResponseEntity.ok(finalResult)
-        }
-
-        /**
-         * Endpoint para listar personagens agrupados por universo
-         *
-         * @param page Número da página (começando em 0)
-         * @param size Tamanho da página (entre 1 e 50)
-         * @return Resposta paginada com personagens agrupados por universo
-         */
-        @GetMapping("/grouped")
-        suspend fun getGroupedCharacters(
-                @RequestParam(defaultValue = "0") page: Int,
-                @RequestParam(defaultValue = "20") size: Int
-        ): ResponseEntity<GroupedPageResponse> {
-                logger.info(
-                        "Recebida requisição para buscar personagens agrupados: página $page, tamanho $size"
-                )
-
-                val result = characterUseCase.getGroupedCharacters(page, size)
-
-                // Obtém o tamanho dos arrays de personagens na estrutura de mapa
-                val dragonballSize = result.content["dragonball"]?.size ?: 0
-                val pokemonSize = result.content["pokemon"]?.size ?: 0
-
-                logger.info(
-                        "Retornando personagens agrupados ($dragonballSize de Dragon Ball, $pokemonSize de Pokémon)"
-                )
-                return ResponseEntity.ok(result)
         }
 
         /**
