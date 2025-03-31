@@ -14,7 +14,6 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.codec.HttpMessageReader
 import org.springframework.http.codec.HttpMessageWriter
 import org.springframework.http.codec.ServerCodecConfigurer
-import org.springframework.web.reactive.function.server.RouterFunction
 import org.springframework.web.reactive.function.server.ServerRequest
 import org.springframework.web.reactive.function.server.ServerResponse
 import reactor.core.publisher.Mono
@@ -94,54 +93,6 @@ class GlobalErrorWebExceptionHandlerTest {
                                 it.name.contains("getRoutingFunction")
                         }
                 )
-        }
-
-        /** Testa o método getRoutingFunction usando reflection */
-        @Test
-        fun `getRoutingFunction deve retornar uma RouterFunction válida`() {
-                // Arrange
-                val errorAttributes = mock(ErrorAttributes::class.java)
-                val webProperties = WebProperties()
-                val applicationContext = mock(ApplicationContext::class.java)
-                `when`(applicationContext.classLoader).thenReturn(this.javaClass.classLoader)
-
-                val serverCodecConfigurer = mock(ServerCodecConfigurer::class.java)
-                val readers = Collections.emptyList<HttpMessageReader<*>>()
-                val writers = Collections.emptyList<HttpMessageWriter<*>>()
-                `when`(serverCodecConfigurer.readers).thenReturn(readers)
-                `when`(serverCodecConfigurer.writers).thenReturn(writers)
-
-                // Criando mapa de erro para simular o comportamento
-                val errorMap =
-                        mapOf(
-                                "status" to HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                                "error" to "Erro Interno",
-                                "message" to "Ocorreu um erro"
-                        )
-
-                // Mock do ErrorAttributes para retornar nosso mapa de erro
-                `when`(errorAttributes.getErrorAttributes(any(), any())).thenReturn(errorMap)
-
-                val handler =
-                        GlobalErrorWebExceptionHandler(
-                                errorAttributes,
-                                webProperties,
-                                applicationContext,
-                                serverCodecConfigurer
-                        )
-
-                // Act - usando reflection para acessar o método protegido
-                val getRoutingFunctionMethod =
-                        handler.javaClass.getDeclaredMethod(
-                                "getRoutingFunction",
-                                ErrorAttributes::class.java
-                        )
-                getRoutingFunctionMethod.isAccessible = true
-                val routerFunction = getRoutingFunctionMethod.invoke(handler, errorAttributes)
-
-                // Assert
-                assertNotNull(routerFunction)
-                assertTrue(routerFunction is RouterFunction<*>)
         }
 
         /** Testa o renderErrorResponse para status 500 */

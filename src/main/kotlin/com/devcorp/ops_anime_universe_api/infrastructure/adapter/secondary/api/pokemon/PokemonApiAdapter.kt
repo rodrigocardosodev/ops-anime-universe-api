@@ -159,4 +159,20 @@ class PokemonApiAdapter(
                 abilities = emptyList()
         )
     }
+
+    /**
+     * Extrai o ID de um Pokémon a partir da URL
+     *
+     * @param url URL contendo o ID do Pokémon (ex: "https://pokeapi.co/api/v2/pokemon/25/")
+     * @return ID extraído ou "0" caso não encontre
+     */
+    override fun extractIdFromUrl(url: String): String {
+        return try {
+            val regex = "/pokemon/(\\d+)/".toRegex()
+            regex.find(url)?.groupValues?.get(1) ?: "0"
+        } catch (e: Exception) {
+            logger.warn("Erro ao extrair ID da URL: $url", e)
+            "0"
+        }
+    }
 }

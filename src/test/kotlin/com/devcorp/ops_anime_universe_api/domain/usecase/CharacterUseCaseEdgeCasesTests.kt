@@ -16,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.junit.jupiter.MockitoExtension
 import org.mockito.junit.jupiter.MockitoSettings
 import org.mockito.kotlin.any
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
@@ -256,6 +257,12 @@ class CharacterUseCaseEdgeCasesTests {
                         val highPageNumber = 1000
                         val size = 10
 
+                        // Configura mocks para garantir que retornem listas vazias para página alta
+                        whenever(dragonBallService.getCharacters(eq(highPageNumber), any()))
+                                .thenReturn(emptyList())
+                        whenever(pokemonService.getCharacters(eq(highPageNumber), any()))
+                                .thenReturn(emptyList())
+
                         // Act
                         val result = characterUseCase.getGroupedCharacters(highPageNumber, size)
 
@@ -355,13 +362,33 @@ class CharacterUseCaseEdgeCasesTests {
         @Test
         fun `getGroupedCharacters should handle small negative size`() =
                 testScope.runTest {
-                        // Act - Usando um tamanho negativo
-                        val result = characterUseCase.getGroupedCharacters(0, -2)
+                        // Arrange
+                        val page = 0
+                        val size = -2
 
-                        // Assert - deve usar o tamanho mínimo de 1
-                        assertTrue(result.content["dragonball"]?.isNotEmpty() ?: false)
-                        assertTrue(result.content["pokemon"]?.isNotEmpty() ?: false)
+                        // Configura os mocks para retornar personagens
+                        val dragonBallCharacters =
+                                listOf(Character("db1", "Goku", Universe.DRAGON_BALL))
+                        val pokemonCharacters =
+                                listOf(Character("pk1", "Pikachu", Universe.POKEMON))
+
+                        whenever(dragonBallService.getCharacters(eq(0), any()))
+                                .thenReturn(dragonBallCharacters)
+                        whenever(pokemonService.getCharacters(eq(0), any()))
+                                .thenReturn(pokemonCharacters)
+
+                        // Act
+                        val result = characterUseCase.getGroupedCharacters(page, size)
+
+                        // Assert
+                        // Tamanho negativo deve ser normalizado para 1
                         assertEquals(1, result.size)
+                        // Deve estar na página correta
+                        assertEquals(page, result.page)
+                        // Deve haver pelo menos alguns personagens na resposta
+                        assertTrue(result.content.isNotEmpty())
+                        assertTrue(result.content.containsKey("dragonball"))
+                        assertTrue(result.content.containsKey("pokemon"))
                 }
 
         @Test
@@ -407,6 +434,12 @@ class CharacterUseCaseEdgeCasesTests {
                                         listOf(dragonBallService, pokemonService),
                                         testEnvironmentValue = false
                                 )
+
+                        // Configura serviços para retornar listas vazias para página alta
+                        whenever(dragonBallService.getCharacters(eq(page), any()))
+                                .thenReturn(emptyList())
+                        whenever(pokemonService.getCharacters(eq(page), any()))
+                                .thenReturn(emptyList())
 
                         // Act
                         val result = testUseCase.getCharacters(page, size)

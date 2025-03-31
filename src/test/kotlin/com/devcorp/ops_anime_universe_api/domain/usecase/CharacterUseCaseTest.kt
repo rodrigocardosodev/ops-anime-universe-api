@@ -509,20 +509,18 @@ class CharacterUseCaseTest {
         @Test
         fun `fetchCharactersFromAllServices should handle no services available`() =
                 testScope.runTest {
-                        // Arrange - caso com lista vazia de serviços com ambiente de produção
-                        val testUseCase =
-                                TestableCharacterUseCase(emptyList(), testEnvironmentValue = false)
+                        // Arrange - lista vazia de serviços
+                        val emptyUseCase = CharacterUseCase(emptyList())
 
                         // Act
-                        val result = testUseCase.getCharacters(0, 5)
+                        val result = emptyUseCase.getCharacters(0, 5)
 
-                        // Assert
-                        // Mesmo sem serviços, deve retornar dados da implementação padrão
-                        assertTrue(result.content.isNotEmpty())
+                        // Assert - deve retornar uma lista vazia
+                        assertTrue(result.content.isEmpty())
                 }
 
         @Test
-        fun `fetchCharactersFromAllServices should use createExpandedCharacterList for non-test environment with page greater than 0`() =
+        fun `fetchCharactersFromAllServices should use services in non-test environment with page greater than 0`() =
                 testScope.runTest {
                         // Arrange - configure como ambiente de produção
                         val testUseCase =
@@ -531,8 +529,19 @@ class CharacterUseCaseTest {
                                         testEnvironmentValue = false
                                 )
 
+                        // Configure os mocks para retornar alguns personagens
+                        val dragonBallCharacters =
+                                listOf(Character("db1", "Goku", Universe.DRAGON_BALL))
+                        val pokemonCharacters =
+                                listOf(Character("pk1", "Pikachu", Universe.POKEMON))
+
+                        whenever(dragonBallService.getCharacters(any(), any()))
+                                .thenReturn(dragonBallCharacters)
+                        whenever(pokemonService.getCharacters(any(), any()))
+                                .thenReturn(pokemonCharacters)
+
                         // Act - chamamos com página 1 (para entrar no caminho else do
-                        // fetchCharactersFromAllServices)
+                        // getCharacters)
                         val page = 1
                         val size = 4
                         val result = testUseCase.getCharacters(page, size)

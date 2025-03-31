@@ -2,44 +2,41 @@ package com.devcorp.ops_anime_universe_api
 
 import java.lang.reflect.Modifier
 import kotlin.reflect.jvm.javaMethod
+import kotlin.test.assertNotNull
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito
+import org.mockito.Mockito.mockStatic
+import org.springframework.boot.SpringApplication
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Import
 import org.springframework.context.annotation.Primary
+import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.TestPropertySource
 import org.springframework.web.reactive.function.client.WebClient
 
 @SpringBootTest
 @TestPropertySource(properties = ["spring.main.web-application-type=reactive"])
 @Import(ApplicationTests.TestConfig::class)
+@ActiveProfiles("test")
 class ApplicationTests {
 
   @Configuration
   class TestConfig {
     @Bean
     @Primary
-    fun webClientBuilder(): WebClient.Builder {
-      return Mockito.mock(WebClient.Builder::class.java)
+    fun testWebClientBuilder(): WebClient.Builder {
+      return WebClient.builder()
     }
   }
 
   @Test
-  fun `contexto da aplicação carrega corretamente`() {
-    // Este teste verifica se o contexto da aplicação é carregado corretamente
-    // Se o contexto for carregado sem erros, o teste passa
-  }
-
-  @Test
-  fun `classe Application é instanciada corretamente`() {
-    // Testa a instanciação da classe Application
+  fun `classe Application pode ser instanciada`() {
+    // Arrange & Act
     val application = Application()
 
-    // Como a classe não tem métodos, apenas verificamos
-    // que podemos instanciá-la sem erros
-    assert(application != null)
+    // Assert
+    assertNotNull(application)
   }
 
   @Test
@@ -74,6 +71,27 @@ class ApplicationTests {
 
     assert(isPublicStatic && hasCorrectParameter) {
       "O método main não foi encontrado corretamente no arquivo Application.kt"
+    }
+  }
+
+  @Test
+  fun `método main executa a aplicação corretamente`() {
+    // Usando mockStatic para evitar que SpringApplication.run realmente inicie a aplicação
+    mockStatic(SpringApplication::class.java).use { mockedStatic ->
+      // Arrange - configurando o mock para retornar um mock do ApplicationContext
+      val mockedContext =
+              org.mockito.Mockito.mock(
+                      org.springframework.context.ConfigurableApplicationContext::class.java
+              )
+      mockedStatic
+              .`when`<Any> { SpringApplication.run(Application::class.java, *arrayOf<String>()) }
+              .thenReturn(mockedContext)
+
+      // Act - executando o método main
+      main(arrayOf())
+
+      // Assert - verificando que o método run foi chamado com os parâmetros corretos
+      mockedStatic.verify { SpringApplication.run(Application::class.java, *arrayOf<String>()) }
     }
   }
 }

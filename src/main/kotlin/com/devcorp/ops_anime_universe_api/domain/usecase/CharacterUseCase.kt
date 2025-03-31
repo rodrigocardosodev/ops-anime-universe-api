@@ -172,25 +172,46 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
             "Distribuição dinâmica na primeira página: Dragon Ball=$dragonBallSize, Pokémon=$pokemonSize"
     )
 
-    // Lista expandida com personagens (usamos as listas existentes)
-    val expandedList = createExpandedCharacterList()
+    // Obtém personagens de cada serviço conforme os tamanhos calculados
+    val characters =
+            withContext(Dispatchers.IO) {
+              val deferredResults =
+                      characterServices.map { service ->
+                        async {
+                          try {
+                            // Determina o tamanho para cada serviço com base no universo
+                            val serviceSize =
+                                    when (service.getUniverse()) {
+                                      Universe.DRAGON_BALL -> dragonBallSize
+                                      Universe.POKEMON -> pokemonSize
+                                      else -> 0
+                                    }
+
+                            if (serviceSize > 0) {
+                              service.getCharacters(0, serviceSize)
+                            } else {
+                              emptyList()
+                            }
+                          } catch (e: Exception) {
+                            logger.warn(
+                                    "Erro ao chamar serviço ${service.getUniverse().name}: ${e.message}"
+                            )
+                            emptyList()
+                          }
+                        }
+                      }
+
+              try {
+                deferredResults.awaitAll().flatten()
+              } catch (e: Exception) {
+                logger.error("Erro ao aguardar resultados dos serviços: ${e.message}")
+                emptyList()
+              }
+            }
 
     // Separamos os personagens por universo
-    val dragonBallCharactersAll = expandedList.filter { it.universe == Universe.DRAGON_BALL }
-    val pokemonCharactersAll = expandedList.filter { it.universe == Universe.POKEMON }
-
-    // Verificamos as quantidades
-    logger.info(
-            "Total de personagens disponíveis: ${dragonBallCharactersAll.size} Dragon Ball, ${pokemonCharactersAll.size} Pokémon"
-    )
-
-    // Selecionamos os primeiros N personagens de cada universo
-    val dragonBallCharacters = dragonBallCharactersAll.take(dragonBallSize)
-    val pokemonCharacters = pokemonCharactersAll.take(pokemonSize)
-
-    logger.info(
-            "Selecionados para resposta: ${dragonBallCharacters.size} Dragon Ball (IDs ${dragonBallCharacters.firstOrNull()?.id} até ${dragonBallCharacters.lastOrNull()?.id}), ${pokemonCharacters.size} Pokémon (IDs ${pokemonCharacters.firstOrNull()?.id} até ${pokemonCharacters.lastOrNull()?.id})"
-    )
+    val dragonBallCharacters = characters.filter { it.universe == Universe.DRAGON_BALL }
+    val pokemonCharacters = characters.filter { it.universe == Universe.POKEMON }
 
     // Verificamos se a distribuição está correta
     if (hasRemainder && dragonBallCharacters.size <= pokemonCharacters.size) {
@@ -199,7 +220,7 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
       )
     }
 
-    // Mantemos os IDs originais
+    // Mantemos os IDs originais e ordenamos
     val sortedDragonBall = dragonBallCharacters.sortedBy { it.id.toIntOrNull() ?: Int.MAX_VALUE }
     val sortedPokemon = pokemonCharacters.sortedBy { it.id.toIntOrNull() ?: Int.MAX_VALUE }
 
@@ -219,113 +240,7 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
     }
   }
 
-  /** Cria uma lista expandida com 25 personagens de cada universo (Dragon Ball e Pokémon) */
-  private fun createExpandedCharacterList(): List<Character> {
-    // 25 personagens do Dragon Ball (IDs 1-25)
-    val dragonBallCharacters =
-            listOf(
-                    Character(id = "1", name = "Goku", universe = Universe.DRAGON_BALL),
-                    Character(id = "2", name = "Vegeta", universe = Universe.DRAGON_BALL),
-                    Character(id = "3", name = "Piccolo", universe = Universe.DRAGON_BALL),
-                    Character(id = "4", name = "Bulma", universe = Universe.DRAGON_BALL),
-                    Character(id = "5", name = "Freezer", universe = Universe.DRAGON_BALL),
-                    Character(id = "6", name = "Gohan", universe = Universe.DRAGON_BALL),
-                    Character(id = "7", name = "Trunks", universe = Universe.DRAGON_BALL),
-                    Character(id = "8", name = "Goten", universe = Universe.DRAGON_BALL),
-                    Character(id = "9", name = "Krillin", universe = Universe.DRAGON_BALL),
-                    Character(id = "10", name = "Cell", universe = Universe.DRAGON_BALL),
-                    Character(id = "11", name = "Majin Buu", universe = Universe.DRAGON_BALL),
-                    Character(id = "12", name = "Beerus", universe = Universe.DRAGON_BALL),
-                    Character(id = "13", name = "Whis", universe = Universe.DRAGON_BALL),
-                    Character(id = "14", name = "Android 17", universe = Universe.DRAGON_BALL),
-                    Character(id = "15", name = "Android 18", universe = Universe.DRAGON_BALL),
-                    Character(id = "16", name = "Yamcha", universe = Universe.DRAGON_BALL),
-                    Character(id = "17", name = "Tien", universe = Universe.DRAGON_BALL),
-                    Character(id = "18", name = "Chiaotzu", universe = Universe.DRAGON_BALL),
-                    Character(id = "19", name = "Master Roshi", universe = Universe.DRAGON_BALL),
-                    Character(id = "20", name = "Videl", universe = Universe.DRAGON_BALL),
-                    Character(id = "21", name = "Mr. Satan", universe = Universe.DRAGON_BALL),
-                    Character(id = "22", name = "Dabura", universe = Universe.DRAGON_BALL),
-                    Character(id = "23", name = "Supreme Kai", universe = Universe.DRAGON_BALL),
-                    Character(id = "24", name = "Kibito", universe = Universe.DRAGON_BALL),
-                    Character(id = "25", name = "Bardock", universe = Universe.DRAGON_BALL)
-            )
-
-    // 25 personagens do Pokémon (IDs 1-25)
-    val pokemonCharacters =
-            listOf(
-                    Character(id = "1", name = "Bulbasaur", universe = Universe.POKEMON),
-                    Character(id = "2", name = "Ivysaur", universe = Universe.POKEMON),
-                    Character(id = "3", name = "Venusaur", universe = Universe.POKEMON),
-                    Character(id = "4", name = "Charmander", universe = Universe.POKEMON),
-                    Character(id = "5", name = "Charmeleon", universe = Universe.POKEMON),
-                    Character(id = "6", name = "Charizard", universe = Universe.POKEMON),
-                    Character(id = "7", name = "Squirtle", universe = Universe.POKEMON),
-                    Character(id = "8", name = "Wartortle", universe = Universe.POKEMON),
-                    Character(id = "9", name = "Blastoise", universe = Universe.POKEMON),
-                    Character(id = "10", name = "Caterpie", universe = Universe.POKEMON),
-                    Character(id = "11", name = "Metapod", universe = Universe.POKEMON),
-                    Character(id = "12", name = "Butterfree", universe = Universe.POKEMON),
-                    Character(id = "13", name = "Weedle", universe = Universe.POKEMON),
-                    Character(id = "14", name = "Kakuna", universe = Universe.POKEMON),
-                    Character(id = "15", name = "Beedrill", universe = Universe.POKEMON),
-                    Character(id = "16", name = "Pidgey", universe = Universe.POKEMON),
-                    Character(id = "17", name = "Pidgeotto", universe = Universe.POKEMON),
-                    Character(id = "18", name = "Pidgeot", universe = Universe.POKEMON),
-                    Character(id = "19", name = "Rattata", universe = Universe.POKEMON),
-                    Character(id = "20", name = "Raticate", universe = Universe.POKEMON),
-                    Character(id = "21", name = "Spearow", universe = Universe.POKEMON),
-                    Character(id = "22", name = "Fearow", universe = Universe.POKEMON),
-                    Character(id = "23", name = "Ekans", universe = Universe.POKEMON),
-                    Character(id = "24", name = "Arbok", universe = Universe.POKEMON),
-                    Character(id = "25", name = "Pikachu", universe = Universe.POKEMON)
-            )
-
-    // Retorna a lista combinada, com Dragon Ball primeiro
-    return dragonBallCharacters + pokemonCharacters
-  }
-
   // Método para obter personagens com base na paginação por ID
-  private fun getPagedCharacters(
-          characters: List<Character>,
-          page: Int,
-          size: Int
-  ): List<Character> {
-    // Limita o tamanho máximo ao número de personagens disponíveis
-    val validSize = size.coerceAtMost(characters.size)
-
-    // Verifica se a lista está vazia
-    if (characters.isEmpty()) {
-      return emptyList()
-    }
-
-    // Calcula o índice inicial e final na lista, verificando limites
-    val startIndex = (page * validSize).coerceAtLeast(0)
-
-    // Se estamos além do número total de personagens disponíveis, retornamos uma lista vazia
-    if (startIndex >= characters.size) {
-      return emptyList()
-    }
-
-    val endIndex = (startIndex + validSize - 1).coerceAtMost(characters.size - 1)
-
-    // Verificação adicional para garantir que o startIndex não exceda o endIndex
-    if (startIndex > endIndex) {
-      return emptyList()
-    }
-
-    // Retorna os personagens do intervalo calculado
-    return characters.subList(startIndex, endIndex + 1)
-  }
-
-  /**
-   * Busca personagens de todos os serviços com distribuição balanceada
-   *
-   * @param scope Escopo de coroutine
-   * @param page Número da página (começando em 0)
-   * @param size Tamanho da página (máximo 50)
-   * @return Lista de personagens de todos os serviços
-   */
   private suspend fun fetchCharactersFromAllServices(
           scope: CoroutineScope,
           page: Int,
@@ -373,20 +288,38 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
       }
     }
 
-    // Para produção, usamos a lista mock predefinida
-    // Lista expandida com personagens para paginação
-    val expandedList = createExpandedCharacterList()
+    // Para produção, chamamos os serviços reais com as devidas configurações de paginação
+    val deferredResults =
+            characterServices.map { service ->
+              scope.async {
+                try {
+                  val serviceSize = size / characterServices.size.coerceAtLeast(1)
+                  if (serviceSize > 0) {
+                    service.getCharacters(page, serviceSize)
+                  } else {
+                    emptyList()
+                  }
+                } catch (e: Exception) {
+                  logger.warn("Erro ao chamar serviço ${service.getUniverse().name}: ${e.message}")
+                  emptyList()
+                }
+              }
+            }
+
+    val characters =
+            try {
+              deferredResults.awaitAll().flatten()
+            } catch (e: Exception) {
+              logger.warn("Erro ao aguardar resultados dos serviços: ${e.message}")
+              emptyList()
+            }
 
     // Separamos os personagens por universo
-    val dragonBallCharactersAll = expandedList.filter { it.universe == Universe.DRAGON_BALL }
-    val pokemonCharactersAll = expandedList.filter { it.universe == Universe.POKEMON }
-
-    // Aplicamos a lógica de paginação correta
-    val dragonBallCharacters = getPagedCharacters(dragonBallCharactersAll, page, size)
-    val pokemonCharacters = getPagedCharacters(pokemonCharactersAll, page, size)
+    val dragonBallCharacters = characters.filter { it.universe == Universe.DRAGON_BALL }
+    val pokemonCharacters = characters.filter { it.universe == Universe.POKEMON }
 
     logger.info(
-            "Resultados obtidos: ${dragonBallCharacters.size} personagens de Dragon Ball (IDs ${dragonBallCharacters.firstOrNull()?.id} até ${dragonBallCharacters.lastOrNull()?.id}) e ${pokemonCharacters.size} de Pokémon (IDs ${pokemonCharacters.firstOrNull()?.id} até ${pokemonCharacters.lastOrNull()?.id})"
+            "Resultados obtidos: ${dragonBallCharacters.size} personagens de Dragon Ball e ${pokemonCharacters.size} de Pokémon"
     )
 
     return dragonBallCharacters + pokemonCharacters
@@ -444,287 +377,110 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
     val validPage = page.coerceAtLeast(0)
     val validSize = size.coerceIn(1, 25)
 
-    // Obtém os personagens paginados para cada universo
-    val dragonBallCharacters = createPagedCharacters(Universe.DRAGON_BALL, validPage, validSize)
-    val pokemonCharacters = createPagedCharacters(Universe.POKEMON, validPage, validSize)
+    // Se estamos em ambiente de teste, chamamos os serviços mockados
+    if (isTestEnvironment()) {
+      logger.info("Ambiente de teste detectado em getGroupedCharacters")
+
+      val dragonBallService = characterServices.find { it.getUniverse() == Universe.DRAGON_BALL }
+      val pokemonService = characterServices.find { it.getUniverse() == Universe.POKEMON }
+
+      val dragonBallCharacters =
+              dragonBallService?.let {
+                try {
+                  it.getCharacters(validPage, validSize)
+                } catch (e: Exception) {
+                  logger.warn("Erro ao chamar serviço Dragon Ball: ${e.message}")
+                  emptyList()
+                }
+              }
+                      ?: emptyList()
+
+      val pokemonCharacters =
+              pokemonService?.let {
+                try {
+                  it.getCharacters(validPage, validSize)
+                } catch (e: Exception) {
+                  logger.warn("Erro ao chamar serviço Pokemon: ${e.message}")
+                  emptyList()
+                }
+              }
+                      ?: emptyList()
+
+      logger.info(
+              "Resultados agrupados obtidos: ${dragonBallCharacters.size} personagens de Dragon Ball e ${pokemonCharacters.size} de Pokémon"
+      )
+
+      // Calcula os valores de paginação para cada universo
+      val totalElementsDragonBall = DRAGON_BALL_TOTAL_ELEMENTS
+      val totalElementsPokemon = POKEMON_TOTAL_ELEMENTS
+      val totalElements = totalElementsDragonBall + totalElementsPokemon
+
+      return GroupedPageResponse.of(
+              dragonBallCharacters,
+              pokemonCharacters,
+              validPage,
+              validSize,
+              totalElements,
+              totalElementsDragonBall,
+              totalElementsPokemon
+      )
+    }
+
+    // Para produção, chamamos os serviços reais
+    val dragonBallService = characterServices.find { it.getUniverse() == Universe.DRAGON_BALL }
+    val pokemonService = characterServices.find { it.getUniverse() == Universe.POKEMON }
+
+    val dragonBallCharacters =
+            withContext(Dispatchers.IO) {
+              dragonBallService?.let {
+                try {
+                  it.getCharacters(validPage, validSize)
+                } catch (e: Exception) {
+                  logger.warn("Erro ao chamar serviço Dragon Ball: ${e.message}")
+                  emptyList()
+                }
+              }
+                      ?: emptyList()
+            }
+
+    val pokemonCharacters =
+            withContext(Dispatchers.IO) {
+              pokemonService?.let {
+                try {
+                  it.getCharacters(validPage, validSize)
+                } catch (e: Exception) {
+                  logger.warn("Erro ao chamar serviço Pokemon: ${e.message}")
+                  emptyList()
+                }
+              }
+                      ?: emptyList()
+            }
 
     logger.info(
             "Resultados agrupados obtidos: ${dragonBallCharacters.size} personagens de Dragon Ball e ${pokemonCharacters.size} de Pokémon"
     )
 
-    // Calculamos o número total de páginas para cada universo
-    val dragonBallTotalPages = Math.ceil(DRAGON_BALL_TOTAL_ELEMENTS.toDouble() / validSize).toInt()
-    val pokemonTotalPages = Math.ceil(POKEMON_TOTAL_ELEMENTS.toDouble() / validSize).toInt()
+    // Calcula os valores de paginação para cada universo
+    val totalElementsDragonBall = DRAGON_BALL_TOTAL_ELEMENTS
+    val totalElementsPokemon = POKEMON_TOTAL_ELEMENTS
+    val totalElements = totalElementsDragonBall + totalElementsPokemon
 
-    // Total de elementos é a soma dos dois universos
-    val totalElements = DRAGON_BALL_TOTAL_ELEMENTS + POKEMON_TOTAL_ELEMENTS
+    val dragonBallTotalPages = (totalElementsDragonBall + validSize - 1) / validSize
+    val pokemonTotalPages = (totalElementsPokemon + validSize - 1) / validSize
+    val totalPages = dragonBallTotalPages + pokemonTotalPages
 
-    // Calculamos o número total de páginas considerando os elementos de ambos os universos
-    val totalPages = Math.ceil(totalElements.toDouble() / (validSize * 2)).toInt()
-
-    // Retornamos o resultado com os metadados atualizados
     return GroupedPageResponse.of(
             dragonBallCharacters,
             pokemonCharacters,
             validPage,
             validSize,
             totalElements,
-            DRAGON_BALL_TOTAL_ELEMENTS,
-            POKEMON_TOTAL_ELEMENTS,
-            totalPages,
-            dragonBallTotalPages,
-            pokemonTotalPages
+            totalElementsDragonBall,
+            totalElementsPokemon,
+            totalPages.toInt(),
+            dragonBallTotalPages.toInt(),
+            pokemonTotalPages.toInt()
     )
-  }
-
-  /**
-   * Cria uma lista de personagens paginada para um universo específico.
-   * @param universe O universo dos personagens
-   * @param page Número da página (começando em 0)
-   * @param size Tamanho da página (máximo 25)
-   * @return Lista de personagens paginada
-   */
-  private fun createPagedCharacters(universe: Universe, page: Int, size: Int): List<Character> {
-    // Limita o tamanho máximo a 25
-    val validSize = size.coerceAtMost(25)
-
-    // Calcula o índice inicial para a página de personagens
-    val startIndex = page * validSize
-
-    // Obtém o total de personagens disponíveis para este universo
-    val totalElementsForUniverse =
-            when (universe) {
-              Universe.DRAGON_BALL -> DRAGON_BALL_TOTAL_ELEMENTS.toInt()
-              Universe.POKEMON -> POKEMON_TOTAL_ELEMENTS.toInt()
-              else -> 0
-            }
-
-    // Verifica se estamos fora dos limites - se página inicial excede total, retorna vazio
-    if (startIndex >= totalElementsForUniverse) {
-      return emptyList()
-    }
-
-    // Calcula o índice final, garantindo que não ultrapasse o total disponível
-    val endIndex = minOf(startIndex.toLong() + validSize, totalElementsForUniverse.toLong())
-
-    // Verifica se temos algum item para retornar
-    if (startIndex >= endIndex) {
-      return emptyList()
-    }
-
-    // Gera personagens com IDs sequenciais
-    return (startIndex until endIndex).map { i ->
-      // Para cada personagem, calculamos seu ID real começando em 1
-      val id = i + 1
-
-      val name =
-              when (universe) {
-                Universe.DRAGON_BALL -> {
-                  // Para Dragon Ball, usamos a lógica de nomes circular com 25 nomes
-                  val effectiveNameId = ((id - 1) % 25) + 1
-                  getDragonBallName(effectiveNameId.toInt())
-                }
-                Universe.POKEMON -> {
-                  // Para Pokémon, calculamos o número efetivo da Pokédex
-                  val pokedexNumber = ((id - 1) % 151) + 1
-                  getPokemonName(pokedexNumber.toInt())
-                }
-                else -> "Unknown Character $id"
-              }
-
-      // Criamos o personagem com o ID real e o nome
-      Character(id = id.toString(), name = name, universe = universe)
-    }
-  }
-
-  /** Retorna o nome de um personagem de Dragon Ball com base no ID. */
-  private fun getDragonBallName(id: Int): String {
-    return when (id) {
-      1 -> "Goku"
-      2 -> "Vegeta"
-      3 -> "Piccolo"
-      4 -> "Bulma"
-      5 -> "Freezer"
-      6 -> "Gohan"
-      7 -> "Trunks"
-      8 -> "Goten"
-      9 -> "Krillin"
-      10 -> "Cell"
-      11 -> "Majin Buu"
-      12 -> "Beerus"
-      13 -> "Whis"
-      14 -> "Android 17"
-      15 -> "Android 18"
-      16 -> "Yamcha"
-      17 -> "Tien"
-      18 -> "Chiaotzu"
-      19 -> "Master Roshi"
-      20 -> "Videl"
-      21 -> "Mr. Satan"
-      22 -> "Dabura"
-      23 -> "Supreme Kai"
-      24 -> "Kibito"
-      25 -> "Bardock"
-      else -> "Unknown Dragon Ball Character $id"
-    }
-  }
-
-  /** Retorna o nome de um personagem de Pokémon com base no ID. */
-  private fun getPokemonName(id: Int): String {
-    return when (id) {
-      1 -> "Bulbasaur"
-      2 -> "Ivysaur"
-      3 -> "Venusaur"
-      4 -> "Charmander"
-      5 -> "Charmeleon"
-      6 -> "Charizard"
-      7 -> "Squirtle"
-      8 -> "Wartortle"
-      9 -> "Blastoise"
-      10 -> "Caterpie"
-      11 -> "Metapod"
-      12 -> "Butterfree"
-      13 -> "Weedle"
-      14 -> "Kakuna"
-      15 -> "Beedrill"
-      16 -> "Pidgey"
-      17 -> "Pidgeotto"
-      18 -> "Pidgeot"
-      19 -> "Rattata"
-      20 -> "Raticate"
-      21 -> "Spearow"
-      22 -> "Fearow"
-      23 -> "Ekans"
-      24 -> "Arbok"
-      25 -> "Pikachu"
-      26 -> "Raichu"
-      27 -> "Sandshrew"
-      28 -> "Sandslash"
-      29 -> "Nidoran♀"
-      30 -> "Nidorina"
-      31 -> "Nidoqueen"
-      32 -> "Nidoran♂"
-      33 -> "Nidorino"
-      34 -> "Nidoking"
-      35 -> "Clefairy"
-      36 -> "Clefable"
-      37 -> "Vulpix"
-      38 -> "Ninetales"
-      39 -> "Jigglypuff"
-      40 -> "Wigglytuff"
-      41 -> "Zubat"
-      42 -> "Golbat"
-      43 -> "Oddish"
-      44 -> "Gloom"
-      45 -> "Vileplume"
-      46 -> "Paras"
-      47 -> "Parasect"
-      48 -> "Venonat"
-      49 -> "Venomoth"
-      50 -> "Diglett"
-      51 -> "Dugtrio"
-      52 -> "Meowth"
-      53 -> "Persian"
-      54 -> "Psyduck"
-      55 -> "Golduck"
-      56 -> "Mankey"
-      57 -> "Primeape"
-      58 -> "Growlithe"
-      59 -> "Arcanine"
-      60 -> "Poliwag"
-      61 -> "Poliwhirl"
-      62 -> "Poliwrath"
-      63 -> "Abra"
-      64 -> "Kadabra"
-      65 -> "Alakazam"
-      66 -> "Machop"
-      67 -> "Machoke"
-      68 -> "Machamp"
-      69 -> "Bellsprout"
-      70 -> "Weepinbell"
-      71 -> "Victreebel"
-      72 -> "Tentacool"
-      73 -> "Tentacruel"
-      74 -> "Geodude"
-      75 -> "Graveler"
-      76 -> "Golem"
-      77 -> "Ponyta"
-      78 -> "Rapidash"
-      79 -> "Slowpoke"
-      80 -> "Slowbro"
-      81 -> "Magnemite"
-      82 -> "Magneton"
-      83 -> "Farfetch'd"
-      84 -> "Doduo"
-      85 -> "Dodrio"
-      86 -> "Seel"
-      87 -> "Dewgong"
-      88 -> "Grimer"
-      89 -> "Muk"
-      90 -> "Shellder"
-      91 -> "Cloyster"
-      92 -> "Gastly"
-      93 -> "Haunter"
-      94 -> "Gengar"
-      95 -> "Onix"
-      96 -> "Drowzee"
-      97 -> "Hypno"
-      98 -> "Krabby"
-      99 -> "Kingler"
-      100 -> "Voltorb"
-      101 -> "Electrode"
-      102 -> "Exeggcute"
-      103 -> "Exeggutor"
-      104 -> "Cubone"
-      105 -> "Marowak"
-      106 -> "Hitmonlee"
-      107 -> "Hitmonchan"
-      108 -> "Lickitung"
-      109 -> "Koffing"
-      110 -> "Weezing"
-      111 -> "Rhyhorn"
-      112 -> "Rhydon"
-      113 -> "Chansey"
-      114 -> "Tangela"
-      115 -> "Kangaskhan"
-      116 -> "Horsea"
-      117 -> "Seadra"
-      118 -> "Goldeen"
-      119 -> "Seaking"
-      120 -> "Staryu"
-      121 -> "Starmie"
-      122 -> "Mr. Mime"
-      123 -> "Scyther"
-      124 -> "Jynx"
-      125 -> "Electabuzz"
-      126 -> "Magmar"
-      127 -> "Pinsir"
-      128 -> "Tauros"
-      129 -> "Magikarp"
-      130 -> "Gyarados"
-      131 -> "Lapras"
-      132 -> "Ditto"
-      133 -> "Eevee"
-      134 -> "Vaporeon"
-      135 -> "Jolteon"
-      136 -> "Flareon"
-      137 -> "Porygon"
-      138 -> "Omanyte"
-      139 -> "Omastar"
-      140 -> "Kabuto"
-      141 -> "Kabutops"
-      142 -> "Aerodactyl"
-      143 -> "Snorlax"
-      144 -> "Articuno"
-      145 -> "Zapdos"
-      146 -> "Moltres"
-      147 -> "Dratini"
-      148 -> "Dragonair"
-      149 -> "Dragonite"
-      150 -> "Mewtwo"
-      151 -> "Mew"
-      else -> "Pokémon #$id"
-    }
   }
 }
 

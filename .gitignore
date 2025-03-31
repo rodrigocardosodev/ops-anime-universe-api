@@ -155,4 +155,22 @@ jacoco.exec
 !**/src/main/**/application.properties
 !**/src/test/**/application.properties
 HELP.md
-.gradle 
+.gradle
+
+### Security ###
+*.env
+*.secret
+.env
+.secret
+
+### Build ###
+*.log
+*.jar
+*.war
+*.zip
+*.tar.gz
+
+### Coverage reports ###
+/coverage/
+/.coverage
+htmlcov/ 

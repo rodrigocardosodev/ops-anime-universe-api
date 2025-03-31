@@ -4,6 +4,13 @@ import com.devcorp.ops_anime_universe_api.domain.model.Character
 import com.devcorp.ops_anime_universe_api.domain.model.Universe
 import com.devcorp.ops_anime_universe_api.domain.port.api.CharacterService
 import com.devcorp.ops_anime_universe_api.domain.port.spi.DragonBallApiClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
@@ -13,6 +20,9 @@ class DragonBallCharacterService(private val dragonBallApiClient: DragonBallApiC
         CharacterService {
 
   private val logger = LoggerFactory.getLogger(DragonBallCharacterService::class.java)
+
+  // Limita o número de chamadas simultâneas para a API Dragon Ball
+  private val concurrentRequestsSemaphore = Semaphore(10)
 
   override fun getUniverse(): Universe = Universe.DRAGON_BALL
 
@@ -31,12 +41,27 @@ class DragonBallCharacterService(private val dragonBallApiClient: DragonBallApiC
     return try {
       val response = dragonBallApiClient.getCharacters(dragonBallPage, validSize)
 
-      response.items.map { character ->
-        Character(
-                id = character.id.toString(),
-                name = character.name,
-                universe = Universe.DRAGON_BALL
-        )
+      // Se não houver resultados, retorna lista vazia
+      if (response.items.isEmpty()) {
+        logger.info("Nenhum personagem encontrado na página $validPage")
+        return emptyList()
+      }
+
+      // Processamento paralelo com semáforo para limitar requisições concorrentes
+      coroutineScope {
+        response.items
+                .map { character ->
+                  async(Dispatchers.IO) {
+                    concurrentRequestsSemaphore.withPermit {
+                      Character(
+                              id = character.id.toString(),
+                              name = character.name,
+                              universe = Universe.DRAGON_BALL
+                      )
+                    }
+                  }
+                }
+                .awaitAll()
       }
     } catch (e: Exception) {
       logger.error("Erro ao buscar personagens do Dragon Ball: ${e.message}", e)
@@ -53,7 +78,7 @@ class DragonBallCharacterService(private val dragonBallApiClient: DragonBallApiC
 
   override suspend fun isAvailable(): Boolean {
     return try {
-      dragonBallApiClient.isAvailable()
+      withContext(Dispatchers.IO) { dragonBallApiClient.isAvailable() }
     } catch (e: Exception) {
       logger.error("Erro ao verificar disponibilidade da API do Dragon Ball: ${e.message}", e)
 
@@ -68,7 +93,7 @@ class DragonBallCharacterService(private val dragonBallApiClient: DragonBallApiC
   }
 
   /** Detecta se estamos em ambiente de teste ou de produção */
-  private fun isTestEnvironment(): Boolean {
+  internal fun isTestEnvironment(): Boolean {
     return try {
       // Em ambientes de teste, normalmente o stack trace contém "Test" ou "test"
       val stackTrace = Thread.currentThread().stackTrace

@@ -343,4 +343,40 @@ class PokemonApiAdapterTest {
                         assertEquals(0, result.count)
                         assertEquals(0, result.results.size)
                 }
+
+        @Test
+        fun `extractIdFromUrl should extract ID correctly from valid URL`() =
+                testScope.runTest {
+                        // Act
+                        val result =
+                                adapter.extractIdFromUrl("https://pokeapi.co/api/v2/pokemon/42/")
+
+                        // Assert
+                        assertEquals("42", result)
+                }
+
+        @Test
+        fun `extractIdFromUrl should return 0 for invalid URL`() =
+                testScope.runTest {
+                        // Act
+                        val result = adapter.extractIdFromUrl("invalid-url-without-id")
+
+                        // Assert
+                        assertEquals("0", result)
+                }
+
+        @Test
+        fun `extractIdFromUrl should handle exception and return 0`() =
+                testScope.runTest {
+                        // Este teste verifica se uma exceção é tratada corretamente
+                        try {
+                                // Tentar com null causaria erro de compilação, então usamos
+                                // uma string que poderia causar problemas no regex
+                                val result = adapter.extractIdFromUrl("()*+?[]{}|^$")
+                                assertEquals("0", result)
+                        } catch (e: Exception) {
+                                // Se lançar exceção, o teste falha
+                                assertTrue(false, "Não deveria lançar exceção: ${e.message}")
+                        }
+                }
 }

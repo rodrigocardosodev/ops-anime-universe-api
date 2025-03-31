@@ -145,6 +145,69 @@ class CustomErrorAttributesTest {
                 assertEquals("Erro interno", result["message"])
                 assertFalse(result.containsKey("timestamp"))
         }
+
+        @Test
+        fun `getErrorAttributes deve tratar diversos códigos de erro corretamente`() {
+                // Arrange
+                val customErrorAttributes = CustomErrorAttributes()
+                val serverRequest = mock(ServerRequest::class.java)
+                val options = ErrorAttributeOptions.defaults()
+                val uri = mock(URI::class.java)
+                val path = "/api/test"
+
+                // Mock do comportamento
+                `when`(serverRequest.uri()).thenReturn(uri)
+                `when`(uri.path).thenReturn(path)
+
+                // Lista de códigos de erro a testar
+                val errorCodes = listOf(400, 401, 403, 404, 500, 502, 503)
+
+                // Teste para cada código de erro
+                for (errorCode in errorCodes) {
+                        // Criar mapa simulando o retorno do DefaultErrorAttributes
+                        val originalAttributes =
+                                mutableMapOf<String, Any>(
+                                        "status" to errorCode,
+                                        "error" to "Error $errorCode",
+                                        "message" to "Original message for $errorCode"
+                                )
+
+                        // Act
+                        val result =
+                                customErrorAttributes.processErrorAttributes(
+                                        originalAttributes,
+                                        path
+                                )
+
+                        // Assert
+                        if (errorCode == 404) {
+                                // Para erro 404, verificamos personalização
+                                assertEquals("Recurso não encontrado: $path", result["message"])
+                                assertTrue(result.containsKey("timestamp"))
+                        } else {
+                                // Para outros erros, verificamos que não houve alteração
+                                assertEquals("Original message for $errorCode", result["message"])
+                                assertFalse(result.containsKey("timestamp"))
+                        }
+                }
+        }
+
+        @Test
+        fun `getErrorAttributes deve lidar corretamente com erro 404 quando outras chaves estão ausentes`() {
+                // Arrange
+                val customErrorAttributes = CustomErrorAttributes()
+                val path = "/api/nao-existe"
+
+                // Mapa mínimo com apenas o código de erro
+                val originalAttributes = mutableMapOf<String, Any>("status" to 404)
+
+                // Act
+                val result = customErrorAttributes.processErrorAttributes(originalAttributes, path)
+
+                // Assert
+                assertEquals("Recurso não encontrado: $path", result["message"])
+                assertTrue(result.containsKey("timestamp"))
+        }
 }
 
 // Extensão para CustomErrorAttributes que facilita o teste isolando a lógica principal

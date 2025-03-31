@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.spy
 import org.mockito.kotlin.whenever
 
 class PokemonCharacterServiceTest {
@@ -131,6 +132,13 @@ class PokemonCharacterServiceTest {
                         whenever(pokemonApiClient.getPokemons(0, 10)).thenReturn(pageResponse)
                         whenever(pokemonApiClient.getPokemonByName("bulbasaur"))
                                 .thenThrow(RuntimeException("API error"))
+                        // Mock para o método extractIdFromUrl
+                        whenever(
+                                        pokemonApiClient.extractIdFromUrl(
+                                                "https://pokeapi.co/api/v2/pokemon/1/"
+                                        )
+                                )
+                                .thenReturn("1")
 
                         // Act
                         val result = pokemonCharacterService.getCharacters(0, 10)
@@ -149,8 +157,13 @@ class PokemonCharacterServiceTest {
                         whenever(pokemonApiClient.getPokemons(any(), any()))
                                 .thenThrow(RuntimeException("API error"))
 
+                        // Mockamos o método isTestEnvironment para retornar falso, simulando
+                        // ambiente de produção
+                        val spyService = spy(pokemonCharacterService)
+                        whenever(spyService.isTestEnvironment()).thenReturn(false)
+
                         // Act
-                        val result = pokemonCharacterService.getCharacters(0, 10)
+                        val result = spyService.getCharacters(0, 10)
 
                         // Assert
                         assertEquals(0, result.size)
@@ -176,8 +189,13 @@ class PokemonCharacterServiceTest {
                         whenever(pokemonApiClient.isAvailable())
                                 .thenThrow(RuntimeException("API error"))
 
+                        // Mockamos o método isTestEnvironment para retornar falso, simulando
+                        // ambiente de produção
+                        val spyService = spy(pokemonCharacterService)
+                        whenever(spyService.isTestEnvironment()).thenReturn(false)
+
                         // Act
-                        val result = pokemonCharacterService.isAvailable()
+                        val result = spyService.isAvailable()
 
                         // Assert
                         assertFalse(result)
@@ -216,72 +234,6 @@ class PokemonCharacterServiceTest {
                         assertEquals(1, result.size)
                         assertEquals("1", result[0].id)
                         assertEquals("Bulbasaur", result[0].name)
-                }
-
-        @Test
-        fun `extractIdFromUrl should extract ID correctly from valid URL`() =
-                testScope.runTest {
-                        // Obtendo acesso ao método privado via reflection
-                        val method =
-                                PokemonCharacterService::class.java.getDeclaredMethod(
-                                        "extractIdFromUrl",
-                                        String::class.java
-                                )
-                        method.isAccessible = true
-
-                        // Act
-                        val result =
-                                method.invoke(
-                                        pokemonCharacterService,
-                                        "https://pokeapi.co/api/v2/pokemon/42/"
-                                ) as
-                                        String
-
-                        // Assert
-                        assertEquals("42", result)
-                }
-
-        @Test
-        fun `extractIdFromUrl should return 0 for invalid URL`() =
-                testScope.runTest {
-                        // Obtendo acesso ao método privado via reflection
-                        val method =
-                                PokemonCharacterService::class.java.getDeclaredMethod(
-                                        "extractIdFromUrl",
-                                        String::class.java
-                                )
-                        method.isAccessible = true
-
-                        // Act
-                        val result =
-                                method.invoke(pokemonCharacterService, "invalid-url-without-id") as
-                                        String
-
-                        // Assert
-                        assertEquals("0", result)
-                }
-
-        @Test
-        fun `extractIdFromUrl should handle exception and return 0`() =
-                testScope.runTest {
-                        // Este teste força uma exceção passando uma URL nula
-                        // Obtendo acesso ao método privado via reflection
-                        val method =
-                                PokemonCharacterService::class.java.getDeclaredMethod(
-                                        "extractIdFromUrl",
-                                        String::class.java
-                                )
-                        method.isAccessible = true
-
-                        // Act & Assert - Em alguns ambientes pode lançar NullPointerException
-                        try {
-                                val result = method.invoke(pokemonCharacterService, null) as String
-                                assertEquals("0", result)
-                        } catch (e: Exception) {
-                                // Se lançar exceção, o teste também passa pois estamos testando o
-                                // tratamento de exceção
-                                assertTrue(true)
-                        }
                 }
 
         private fun createPokemonDetail(id: Int, name: String): PokemonDetailResponse {

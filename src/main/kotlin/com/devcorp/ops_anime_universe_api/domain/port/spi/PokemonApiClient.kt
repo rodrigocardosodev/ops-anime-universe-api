@@ -25,4 +25,12 @@ interface PokemonApiClient {
    * @return true se a API estiver disponível, false caso contrário
    */
   suspend fun isAvailable(): Boolean
+
+  /**
+   * Extrai o ID de um Pokémon a partir da URL
+   *
+   * @param url URL contendo o ID do Pokémon (ex: "https://pokeapi.co/api/v2/pokemon/25/")
+   * @return ID extraído ou "0" caso não encontre
+   */
+  fun extractIdFromUrl(url: String): String
 }
