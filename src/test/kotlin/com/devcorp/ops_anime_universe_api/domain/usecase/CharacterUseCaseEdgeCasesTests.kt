@@ -265,11 +265,11 @@ class CharacterUseCaseEdgeCasesTests {
                         assertTrue(result.content.containsKey("dragonball"))
                         assertTrue(result.content.containsKey("pokemon"))
                         assertTrue(
-                                result.content["dragonball"]?.isNotEmpty() == true
-                        ) // Agora permite não-vazio
+                                result.content["dragonball"]?.isEmpty() ?: false
+                        ) // Deve retornar lista vazia para páginas além do limite
                         assertTrue(
-                                result.content["pokemon"]?.isNotEmpty() == true
-                        ) // Agora permite não-vazio
+                                result.content["pokemon"]?.isEmpty() ?: false
+                        ) // Deve retornar lista vazia para páginas além do limite
                         assertEquals(highPageNumber, result.page)
                         assertEquals(size, result.size)
                         // Totais devem ser mantidos com valores corretos
@@ -391,5 +391,34 @@ class CharacterUseCaseEdgeCasesTests {
                         assertNotNull(result)
                         assertEquals(0, result.page)
                         assertEquals(4, result.size)
+                }
+
+        @Test
+        fun `getPagedCharacters should return empty list when startIndex exceeds available characters`() =
+                testScope.runTest {
+                        // Arrange
+                        // Testamos através de getCharacters chamando com página muito alta
+                        val page = 1000
+                        val size = 10
+
+                        // Configuramos mocks para cenário de produção
+                        val testUseCase =
+                                TestableCharacterUseCase(
+                                        listOf(dragonBallService, pokemonService),
+                                        testEnvironmentValue = false
+                                )
+
+                        // Act
+                        val result = testUseCase.getCharacters(page, size)
+
+                        // Assert
+                        // Deve retornar lista vazia de conteúdo
+                        assertTrue(result.content.isEmpty())
+                        assertEquals(page, result.page)
+                        assertEquals(size, result.size)
+                        // Mesmo com página muito alta, totalElements e totalPages devem estar
+                        // corretos
+                        assertTrue(result.totalElements > 0)
+                        assertTrue(result.totalPages > 0)
                 }
 }

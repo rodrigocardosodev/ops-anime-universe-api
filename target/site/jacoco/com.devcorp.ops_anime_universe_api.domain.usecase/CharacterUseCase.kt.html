@@ -291,43 +291,31 @@ import org.springframework.stereotype.Component
           page: Int,
           size: Int
   ): List&lt;Character&gt; {
-    // Para página 0: IDs 1-10 (se size=10)
-    // Para página 1: IDs 11-20 (se size=10)
-    // Para página 2: IDs 21-30 (se size=10)
+    // Limita o tamanho máximo ao número de personagens disponíveis
+<span class="fc" id="L295">    val validSize = size.coerceAtMost(characters.size)</span>
 
-    // Verificamos o maior ID disponível na lista
-<span class="pc bpc" id="L299" title="1 of 2 branches missed.">    val maxId = characters.mapNotNull { it.id.toIntOrNull() }.maxOrNull() ?: 25</span>
+    // Verifica se a lista está vazia
+<span class="fc bfc" id="L298" title="All 2 branches covered.">    if (characters.isEmpty()) {</span>
+<span class="fc" id="L299">      return emptyList()</span>
+    }
 
-    // Calculamos o ID inicial na paginação desejada
-<span class="fc" id="L302">    val startId = (page * size) + 1</span>
+    // Calcula o índice inicial e final na lista, verificando limites
+<span class="fc" id="L303">    val startIndex = (page * validSize).coerceAtLeast(0)</span>
 
-    // Calculamos o ID final na paginação desejada
-<span class="fc" id="L305">    val endId = startId + size - 1</span>
+    // Se estamos além do número total de personagens disponíveis, retornamos uma lista vazia
+<span class="fc bfc" id="L306" title="All 2 branches covered.">    if (startIndex &gt;= characters.size) {</span>
+<span class="fc" id="L307">      return emptyList()</span>
+    }
 
-    // Agora implementamos a lógica circular para retornar IDs em ordem sequencial
-    // para páginas que ultrapassem o número total de IDs disponíveis
-<span class="fc" id="L309">    val idsToReturn =</span>
-<span class="fc" id="L310">            (startId..endId).map { rawId -&gt;</span>
-              // Ajustamos o ID para nossa faixa disponível (1..maxId)
-              // usando módulo para criar um ciclo quando necessário
-<span class="pc bpc" id="L313" title="1 of 2 branches missed.">              if (rawId &lt;= maxId) {</span>
-                // ID dentro da faixa disponível
-<span class="fc" id="L315">                rawId</span>
-              } else {
-                // ID excede o máximo disponível, calculamos um ID equivalente no ciclo
-                // Subtraímos 1, aplicamos módulo para obter 0..(maxId-1), e somamos 1 para retornar
-                // ao range 1..maxId
-<span class="nc" id="L320">                ((rawId - 1) % maxId) + 1</span>
-              }
-            }
+<span class="fc" id="L310">    val endIndex = (startIndex + validSize - 1).coerceAtMost(characters.size - 1)</span>
 
-    // Criamos o resultado mapeando os IDs para os personagens correspondentes
-<span class="fc" id="L325">    val result =</span>
-<span class="fc" id="L326">            idsToReturn.mapNotNull { calculatedId -&gt;</span>
-<span class="pc bpc" id="L327" title="2 of 8 branches missed.">              characters.find { it.id.toIntOrNull() == calculatedId }</span>
-            }
+    // Verificação adicional para garantir que o startIndex não exceda o endIndex
+<span class="pc bpc" id="L313" title="1 of 2 branches missed.">    if (startIndex &gt; endIndex) {</span>
+<span class="nc" id="L314">      return emptyList()</span>
+    }
 
-<span class="fc" id="L330">    return result</span>
+    // Retorna os personagens do intervalo calculado
+<span class="fc" id="L318">    return characters.subList(startIndex, endIndex + 1)</span>
   }
 
   /**
@@ -343,65 +331,65 @@ import org.springframework.stereotype.Component
           page: Int,
           size: Int
   ): List&lt;Character&gt; {
-<span class="pc bpc" id="L346" title="1 of 2 branches missed.">    if (characterServices.isEmpty()) {</span>
-<span class="nc" id="L347">      logger.warn(&quot;Nenhum serviço de personagens disponível&quot;)</span>
-<span class="nc" id="L348">      return emptyList()</span>
+<span class="pc bpc" id="L334" title="1 of 2 branches missed.">    if (characterServices.isEmpty()) {</span>
+<span class="nc" id="L335">      logger.warn(&quot;Nenhum serviço de personagens disponível&quot;)</span>
+<span class="nc" id="L336">      return emptyList()</span>
     }
 
     // Em testes, sempre chamamos os serviços mockados
-<span class="pc bpc" id="L352" title="1 of 2 branches missed.">    if (isTestEnvironment()) {</span>
-<span class="nc" id="L353">      logger.info(&quot;Ambiente de teste detectado em fetchCharactersFromAllServices&quot;)</span>
+<span class="pc bpc" id="L340" title="1 of 2 branches missed.">    if (isTestEnvironment()) {</span>
+<span class="nc" id="L341">      logger.info(&quot;Ambiente de teste detectado em fetchCharactersFromAllServices&quot;)</span>
 
-<span class="nc" id="L355">      try {</span>
-<span class="nc" id="L356">        val charactersPerService = size / characterServices.size.coerceAtLeast(1)</span>
+<span class="nc" id="L343">      try {</span>
+<span class="nc" id="L344">        val charactersPerService = size / characterServices.size.coerceAtLeast(1)</span>
 
-<span class="nc" id="L358">        val deferredResults =</span>
-<span class="nc" id="L359">                characterServices.map { service -&gt;</span>
-<span class="nc" id="L360">                  scope.async {</span>
-<span class="nc" id="L361">                    try {</span>
-<span class="nc" id="L362">                      service.getCharacters(page, charactersPerService)</span>
-<span class="nc" id="L363">                    } catch (e: Exception) {</span>
-<span class="nc" id="L364">                      logger.warn(</span>
-<span class="nc" id="L365">                              &quot;Erro ao chamar serviço ${service.getUniverse().name}: ${e.message}&quot;</span>
+<span class="nc" id="L346">        val deferredResults =</span>
+<span class="nc" id="L347">                characterServices.map { service -&gt;</span>
+<span class="nc" id="L348">                  scope.async {</span>
+<span class="nc" id="L349">                    try {</span>
+<span class="nc" id="L350">                      service.getCharacters(page, charactersPerService)</span>
+<span class="nc" id="L351">                    } catch (e: Exception) {</span>
+<span class="nc" id="L352">                      logger.warn(</span>
+<span class="nc" id="L353">                              &quot;Erro ao chamar serviço ${service.getUniverse().name}: ${e.message}&quot;</span>
                       )
-<span class="nc" id="L367">                      emptyList()</span>
+<span class="nc" id="L355">                      emptyList()</span>
                     }
                   }
                 }
 
-<span class="nc" id="L372">        val results =</span>
-<span class="nc" id="L373">                try {</span>
-<span class="nc" id="L374">                  deferredResults.awaitAll().flatten()</span>
-<span class="nc" id="L375">                } catch (e: Exception) {</span>
-<span class="nc" id="L376">                  logger.warn(&quot;Erro ao aguardar resultados dos serviços: ${e.message}&quot;)</span>
-<span class="nc" id="L377">                  emptyList()</span>
+<span class="nc" id="L360">        val results =</span>
+<span class="nc" id="L361">                try {</span>
+<span class="nc" id="L362">                  deferredResults.awaitAll().flatten()</span>
+<span class="nc" id="L363">                } catch (e: Exception) {</span>
+<span class="nc" id="L364">                  logger.warn(&quot;Erro ao aguardar resultados dos serviços: ${e.message}&quot;)</span>
+<span class="nc" id="L365">                  emptyList()</span>
                 }
 
         // Em testes, ordenamos por nome para atender as expectativas dos testes
-<span class="nc" id="L381">        return results.sortedBy { it.name }</span>
-<span class="nc" id="L382">      } catch (e: Exception) {</span>
-<span class="nc" id="L383">        logger.error(&quot;Erro ao buscar personagens dos serviços: ${e.message}&quot;)</span>
-<span class="nc" id="L384">        return emptyList()</span>
+<span class="nc" id="L369">        return results.sortedBy { it.name }</span>
+<span class="nc" id="L370">      } catch (e: Exception) {</span>
+<span class="nc" id="L371">        logger.error(&quot;Erro ao buscar personagens dos serviços: ${e.message}&quot;)</span>
+<span class="nc" id="L372">        return emptyList()</span>
       }
     }
 
     // Para produção, usamos a lista mock predefinida
     // Lista expandida com personagens para paginação
-<span class="fc" id="L390">    val expandedList = createExpandedCharacterList()</span>
+<span class="fc" id="L378">    val expandedList = createExpandedCharacterList()</span>
 
     // Separamos os personagens por universo
-<span class="fc bfc" id="L393" title="All 2 branches covered.">    val dragonBallCharactersAll = expandedList.filter { it.universe == Universe.DRAGON_BALL }</span>
-<span class="fc bfc" id="L394" title="All 2 branches covered.">    val pokemonCharactersAll = expandedList.filter { it.universe == Universe.POKEMON }</span>
+<span class="fc bfc" id="L381" title="All 2 branches covered.">    val dragonBallCharactersAll = expandedList.filter { it.universe == Universe.DRAGON_BALL }</span>
+<span class="fc bfc" id="L382" title="All 2 branches covered.">    val pokemonCharactersAll = expandedList.filter { it.universe == Universe.POKEMON }</span>
 
     // Aplicamos a lógica de paginação correta
-<span class="fc" id="L397">    val dragonBallCharacters = getPagedCharacters(dragonBallCharactersAll, page, size)</span>
-<span class="fc" id="L398">    val pokemonCharacters = getPagedCharacters(pokemonCharactersAll, page, size)</span>
+<span class="fc" id="L385">    val dragonBallCharacters = getPagedCharacters(dragonBallCharactersAll, page, size)</span>
+<span class="fc" id="L386">    val pokemonCharacters = getPagedCharacters(pokemonCharactersAll, page, size)</span>
 
-<span class="fc" id="L400">    logger.info(</span>
-<span class="pc bpc" id="L401" title="4 of 8 branches missed.">            &quot;Resultados obtidos: ${dragonBallCharacters.size} personagens de Dragon Ball (IDs ${dragonBallCharacters.firstOrNull()?.id} até ${dragonBallCharacters.lastOrNull()?.id}) e ${pokemonCharacters.size} de Pokémon (IDs ${pokemonCharacters.firstOrNull()?.id} até ${pokemonCharacters.lastOrNull()?.id})&quot;</span>
+<span class="fc" id="L388">    logger.info(</span>
+<span class="fc bfc" id="L389" title="All 8 branches covered.">            &quot;Resultados obtidos: ${dragonBallCharacters.size} personagens de Dragon Ball (IDs ${dragonBallCharacters.firstOrNull()?.id} até ${dragonBallCharacters.lastOrNull()?.id}) e ${pokemonCharacters.size} de Pokémon (IDs ${pokemonCharacters.firstOrNull()?.id} até ${pokemonCharacters.lastOrNull()?.id})&quot;</span>
     )
 
-<span class="fc" id="L404">    return dragonBallCharacters + pokemonCharacters</span>
+<span class="fc" id="L392">    return dragonBallCharacters + pokemonCharacters</span>
   }
 
   /**
@@ -410,41 +398,41 @@ import org.springframework.stereotype.Component
    * @return Mapa com os nomes dos serviços e seus status
    */
   suspend fun checkServicesAvailability(): Map&lt;String, Status&gt; {
-<span class="fc" id="L413">    logger.info(&quot;Verificando disponibilidade dos serviços&quot;)</span>
+<span class="fc" id="L401">    logger.info(&quot;Verificando disponibilidade dos serviços&quot;)</span>
 
-<span class="fc" id="L415">    return coroutineScope {</span>
-<span class="fc" id="L416">      try {</span>
-<span class="fc" id="L417">        val deferredResults =</span>
-<span class="fc" id="L418">                characterServices.map { service -&gt;</span>
-<span class="fc" id="L419">                  async(Dispatchers.IO) {</span>
+<span class="fc" id="L403">    return coroutineScope {</span>
+<span class="fc" id="L404">      try {</span>
+<span class="fc" id="L405">        val deferredResults =</span>
+<span class="fc" id="L406">                characterServices.map { service -&gt;</span>
+<span class="fc" id="L407">                  async(Dispatchers.IO) {</span>
                     // Aplica timeout para cada verificação
-<span class="pc bpc" id="L421" title="1 of 2 branches missed.">                    withTimeoutOrNull(HEALTH_CHECK_TIMEOUT_MS) { checkServiceAvailability(service) }</span>
-<span class="nc" id="L422">                            ?: (service.getUniverse().name to Status.DOWN)</span>
+<span class="pc bpc" id="L409" title="1 of 2 branches missed.">                    withTimeoutOrNull(HEALTH_CHECK_TIMEOUT_MS) { checkServiceAvailability(service) }</span>
+<span class="nc" id="L410">                            ?: (service.getUniverse().name to Status.DOWN)</span>
                   }
                 }
 
-<span class="fc" id="L426">        deferredResults.awaitAll().toMap()</span>
-<span class="nc" id="L427">      } catch (e: Exception) {</span>
-<span class="nc" id="L428">        logger.error(&quot;Erro ao verificar disponibilidade dos serviços: ${e.message}&quot;, e)</span>
-<span class="nc" id="L429">        characterServices.associate { it.getUniverse().name to Status.UNKNOWN }</span>
+<span class="fc" id="L414">        deferredResults.awaitAll().toMap()</span>
+<span class="nc" id="L415">      } catch (e: Exception) {</span>
+<span class="nc" id="L416">        logger.error(&quot;Erro ao verificar disponibilidade dos serviços: ${e.message}&quot;, e)</span>
+<span class="nc" id="L417">        characterServices.associate { it.getUniverse().name to Status.UNKNOWN }</span>
       }
     }
   }
 
   /** Verifica a disponibilidade de um serviço específico */
   private suspend fun checkServiceAvailability(service: CharacterService): Pair&lt;String, Status&gt; {
-<span class="fc" id="L436">    val universe = service.getUniverse()</span>
-<span class="fc" id="L437">    val available =</span>
-<span class="fc" id="L438">            try {</span>
-<span class="fc" id="L439">              service.isAvailable()</span>
-<span class="fc" id="L440">            } catch (e: Exception) {</span>
-<span class="fc" id="L441">              logger.error(</span>
-<span class="fc" id="L442">                      &quot;Erro ao verificar disponibilidade do serviço ${universe.name}: ${e.message}&quot;,</span>
-<span class="fc" id="L443">                      e</span>
+<span class="fc" id="L424">    val universe = service.getUniverse()</span>
+<span class="fc" id="L425">    val available =</span>
+<span class="fc" id="L426">            try {</span>
+<span class="fc" id="L427">              service.isAvailable()</span>
+<span class="fc" id="L428">            } catch (e: Exception) {</span>
+<span class="fc" id="L429">              logger.error(</span>
+<span class="fc" id="L430">                      &quot;Erro ao verificar disponibilidade do serviço ${universe.name}: ${e.message}&quot;,</span>
+<span class="fc" id="L431">                      e</span>
               )
-<span class="fc" id="L445">              false</span>
+<span class="fc" id="L433">              false</span>
             }
-<span class="fc bfc" id="L447" title="All 2 branches covered.">    return universe.name to if (available) Status.UP else Status.DOWN</span>
+<span class="fc bfc" id="L435" title="All 2 branches covered.">    return universe.name to if (available) Status.UP else Status.DOWN</span>
   }
 
   /**
@@ -454,53 +442,53 @@ import org.springframework.stereotype.Component
    * @return GroupedPageResponse com os personagens agrupados por universo
    */
   suspend fun getGroupedCharacters(page: Int, size: Int): GroupedPageResponse {
-<span class="fc" id="L457">    logger.info(&quot;Buscando personagens agrupados: página $page, tamanho $size&quot;)</span>
+<span class="fc" id="L445">    logger.info(&quot;Buscando personagens agrupados: página $page, tamanho $size&quot;)</span>
 
     // Validações básicas de page e size
-<span class="fc" id="L460">    val validPage = page.coerceAtLeast(0)</span>
-<span class="fc" id="L461">    val validSize = size.coerceIn(1, 25)</span>
+<span class="fc" id="L448">    val validPage = page.coerceAtLeast(0)</span>
+<span class="fc" id="L449">    val validSize = size.coerceIn(1, 25)</span>
 
     // Usamos os valores reais das APIs externas para calcular o total de elementos
-<span class="fc" id="L464">    val dragonBallTotalElements = DRAGON_BALL_TOTAL_ELEMENTS</span>
-<span class="fc" id="L465">    val pokemonTotalElements = POKEMON_TOTAL_ELEMENTS</span>
+<span class="fc" id="L452">    val dragonBallTotalElements = DRAGON_BALL_TOTAL_ELEMENTS</span>
+<span class="fc" id="L453">    val pokemonTotalElements = POKEMON_TOTAL_ELEMENTS</span>
 
-<span class="fc" id="L467">    logger.info(</span>
-<span class="fc" id="L468">            &quot;Total de personagens: Dragon Ball=$dragonBallTotalElements, Pokémon=$pokemonTotalElements&quot;</span>
+<span class="fc" id="L455">    logger.info(</span>
+<span class="fc" id="L456">            &quot;Total de personagens: Dragon Ball=$dragonBallTotalElements, Pokémon=$pokemonTotalElements&quot;</span>
     )
 
     // Obtém os personagens paginados para cada universo
-<span class="fc" id="L472">    val dragonBallCharacters = createPagedCharacters(Universe.DRAGON_BALL, validPage, validSize)</span>
-<span class="fc" id="L473">    val pokemonCharacters = createPagedCharacters(Universe.POKEMON, validPage, validSize)</span>
+<span class="fc" id="L460">    val dragonBallCharacters = createPagedCharacters(Universe.DRAGON_BALL, validPage, validSize)</span>
+<span class="fc" id="L461">    val pokemonCharacters = createPagedCharacters(Universe.POKEMON, validPage, validSize)</span>
 
-<span class="fc" id="L475">    logger.info(</span>
-<span class="fc" id="L476">            &quot;Resultados agrupados obtidos: ${dragonBallCharacters.size} personagens de Dragon Ball e ${pokemonCharacters.size} de Pokémon&quot;</span>
+<span class="fc" id="L463">    logger.info(</span>
+<span class="fc" id="L464">            &quot;Resultados agrupados obtidos: ${dragonBallCharacters.size} personagens de Dragon Ball e ${pokemonCharacters.size} de Pokémon&quot;</span>
     )
 
     // Calculamos o número total de páginas para cada universo baseado no total de elementos e
     // tamanho da página
     // Isso garante que quando o tamanho da página aumenta, o número de páginas diminui
     // proporcionalmente
-<span class="fc" id="L483">    val dragonBallTotalPages = Math.ceil(dragonBallTotalElements.toDouble() / validSize).toInt()</span>
-<span class="fc" id="L484">    val pokemonTotalPages = Math.ceil(pokemonTotalElements.toDouble() / validSize).toInt()</span>
+<span class="fc" id="L471">    val dragonBallTotalPages = Math.ceil(dragonBallTotalElements.toDouble() / validSize).toInt()</span>
+<span class="fc" id="L472">    val pokemonTotalPages = Math.ceil(pokemonTotalElements.toDouble() / validSize).toInt()</span>
 
     // Total de elementos é a soma dos dois universos
-<span class="fc" id="L487">    val totalElements = dragonBallTotalElements + pokemonTotalElements</span>
+<span class="fc" id="L475">    val totalElements = dragonBallTotalElements + pokemonTotalElements</span>
 
     // Calculamos o número total de páginas considerando os elementos de ambos os universos
-<span class="fc" id="L490">    val totalPages = Math.ceil(totalElements.toDouble() / (validSize * 2)).toInt()</span>
+<span class="fc" id="L478">    val totalPages = Math.ceil(totalElements.toDouble() / (validSize * 2)).toInt()</span>
 
     // Retornamos o resultado com os metadados atualizados
-<span class="fc" id="L493">    return GroupedPageResponse.of(</span>
-<span class="fc" id="L494">            dragonBallCharacters,</span>
-<span class="fc" id="L495">            pokemonCharacters,</span>
-<span class="fc" id="L496">            validPage,</span>
-<span class="fc" id="L497">            validSize,</span>
-<span class="fc" id="L498">            totalElements,</span>
-<span class="fc" id="L499">            dragonBallTotalElements,</span>
-<span class="fc" id="L500">            pokemonTotalElements,</span>
-<span class="fc" id="L501">            totalPages,</span>
-<span class="fc" id="L502">            dragonBallTotalPages,</span>
-<span class="fc" id="L503">            pokemonTotalPages</span>
+<span class="fc" id="L481">    return GroupedPageResponse.of(</span>
+<span class="fc" id="L482">            dragonBallCharacters,</span>
+<span class="fc" id="L483">            pokemonCharacters,</span>
+<span class="fc" id="L484">            validPage,</span>
+<span class="fc" id="L485">            validSize,</span>
+<span class="fc" id="L486">            totalElements,</span>
+<span class="fc" id="L487">            dragonBallTotalElements,</span>
+<span class="fc" id="L488">            pokemonTotalElements,</span>
+<span class="fc" id="L489">            totalPages,</span>
+<span class="fc" id="L490">            dragonBallTotalPages,</span>
+<span class="fc" id="L491">            pokemonTotalPages</span>
     )
   }
 
@@ -513,116 +501,272 @@ import org.springframework.stereotype.Component
    */
   private fun createPagedCharacters(universe: Universe, page: Int, size: Int): List&lt;Character&gt; {
     // Limita o tamanho máximo a 25
-<span class="fc" id="L516">    val validSize = size.coerceAtMost(25)</span>
+<span class="fc" id="L504">    val validSize = size.coerceAtMost(25)</span>
 
-    // Calcula o ID inicial e final dinamicamente
-<span class="fc" id="L519">    val startId = (page * validSize) + 1</span>
-<span class="fc" id="L520">    val endId = startId + validSize - 1</span>
+    // Calcula o índice inicial para a página de personagens
+<span class="fc" id="L507">    val startIndex = page * validSize</span>
+
+    // Obtém o total de personagens disponíveis para este universo
+<span class="fc" id="L510">    val totalElementsForUniverse =</span>
+<span class="pc bpc" id="L511" title="1 of 3 branches missed.">            when (universe) {</span>
+<span class="fc" id="L512">              Universe.DRAGON_BALL -&gt; DRAGON_BALL_TOTAL_ELEMENTS.toInt()</span>
+<span class="fc" id="L513">              Universe.POKEMON -&gt; POKEMON_TOTAL_ELEMENTS.toInt()</span>
+<span class="nc" id="L514">              else -&gt; 25</span>
+            }
+
+    // Verifica se estamos fora dos limites - se página inicial excede total, retorna vazio
+<span class="fc bfc" id="L518" title="All 2 branches covered.">    if (startIndex &gt;= totalElementsForUniverse) {</span>
+<span class="fc" id="L519">      return emptyList()</span>
+    }
 
     // Lista para guardar os personagens
 <span class="fc" id="L523">    val result = mutableListOf&lt;Character&gt;()</span>
 
-    // Vamos gerar uma lista de personagens com IDs sequenciais
-<span class="pc bpc" id="L526" title="1 of 4 branches missed.">    for (id in startId..endId) {</span>
-      // O ID efetivo entre 1 e 25 usando lógica circular
-<span class="fc" id="L528">      val effectiveId = ((id - 1) % 25) + 1</span>
+    // Calcula quantos personagens realmente precisamos gerar
+<span class="fc" id="L526">    val longStartIndex = startIndex.toLong()</span>
+<span class="fc" id="L527">    val longValidSize = validSize.toLong()</span>
 
-      // Usamos o ID da página para o personagem, mas o nome vem do ID efetivo (1-25)
-<span class="pc bpc" id="L531" title="1 of 3 branches missed.">      when (universe) {</span>
-        Universe.DRAGON_BALL -&gt; {
-<span class="fc" id="L533">          val name = getDragonBallName(effectiveId)</span>
-<span class="fc" id="L534">          result.add(Character(id = id.toString(), name = name, universe = universe))</span>
-        }
-        Universe.POKEMON -&gt; {
-<span class="fc" id="L537">          val name = getPokemonName(effectiveId)</span>
-<span class="fc" id="L538">          result.add(Character(id = id.toString(), name = name, universe = universe))</span>
-        }
-        else -&gt; {
-<span class="nc" id="L541">          result.add(</span>
-<span class="nc" id="L542">                  Character(</span>
-<span class="nc" id="L543">                          id = id.toString(),</span>
-<span class="nc" id="L544">                          name = &quot;Unknown Character $effectiveId&quot;,</span>
-<span class="nc" id="L545">                          universe = universe</span>
-                  )
-          )
-        }
-      }
+    // Verifica novamente após conversão para Long (garantia adicional)
+<span class="pc bpc" id="L530" title="1 of 2 branches missed.">    if (longStartIndex &gt;= totalElementsForUniverse) {</span>
+<span class="nc" id="L531">      return emptyList()</span>
     }
 
-<span class="fc" id="L552">    return result</span>
+    // Calcula o índice final, garantindo que não ultrapasse o total disponível
+<span class="fc" id="L535">    val endIndex = minOf(longStartIndex + longValidSize, totalElementsForUniverse.toLong())</span>
+
+    // Verifica se temos algum item para retornar
+<span class="pc bpc" id="L538" title="1 of 2 branches missed.">    if (longStartIndex &gt;= endIndex) {</span>
+<span class="nc" id="L539">      return emptyList()</span>
+    }
+
+    // Gera personagens com IDs sequenciais reais (sem reciclagem circular)
+<span class="fc bfc" id="L543" title="All 2 branches covered.">    for (i in longStartIndex until endIndex) {</span>
+      // Para cada personagem, calculamos seu ID real começando em 1
+<span class="fc" id="L545">      val id = i + 1</span>
+
+<span class="fc" id="L547">      val name =</span>
+<span class="pc bpc" id="L548" title="1 of 3 branches missed.">              when (universe) {</span>
+                Universe.DRAGON_BALL -&gt; {
+                  // Para Dragon Ball, continuamos usando a lógica de nomes circular com 25 nomes
+<span class="fc" id="L551">                  val effectiveNameId = ((id - 1) % 25) + 1</span>
+<span class="fc" id="L552">                  getDragonBallName(effectiveNameId.toInt())</span>
+                }
+                Universe.POKEMON -&gt; {
+                  // Para Pokémon, vamos calcular o número efetivo da Pokédex
+                  // Isso permite que tenhamos correspondência com a Pokédex real
+                  // independentemente da página
+                  // Se o id real do Pokémon (1-1302) for menor ou igual a 151,
+                  // usamos o nome específico da Pokédex
+<span class="fc" id="L560">                  val pokedexNumber = ((id - 1) % 151) + 1</span>
+<span class="fc" id="L561">                  getPokemonName(pokedexNumber.toInt())</span>
+                }
+<span class="nc" id="L563">                else -&gt; &quot;Unknown Character $id&quot;</span>
+              }
+
+      // Criamos o personagem com o ID real e o nome
+<span class="fc" id="L567">      result.add(Character(id = id.toString(), name = name, universe = universe))</span>
+    }
+
+<span class="fc" id="L570">    return result</span>
   }
 
   /** Retorna o nome de um personagem de Dragon Ball com base no ID. */
   private fun getDragonBallName(id: Int): String {
-<span class="pc bpc" id="L557" title="16 of 26 branches missed.">    return when (id) {</span>
-<span class="fc" id="L558">      1 -&gt; &quot;Goku&quot;</span>
-<span class="fc" id="L559">      2 -&gt; &quot;Vegeta&quot;</span>
-<span class="fc" id="L560">      3 -&gt; &quot;Piccolo&quot;</span>
-<span class="fc" id="L561">      4 -&gt; &quot;Bulma&quot;</span>
-<span class="fc" id="L562">      5 -&gt; &quot;Freezer&quot;</span>
-<span class="fc" id="L563">      6 -&gt; &quot;Gohan&quot;</span>
-<span class="fc" id="L564">      7 -&gt; &quot;Trunks&quot;</span>
-<span class="fc" id="L565">      8 -&gt; &quot;Goten&quot;</span>
-<span class="fc" id="L566">      9 -&gt; &quot;Krillin&quot;</span>
-<span class="fc" id="L567">      10 -&gt; &quot;Cell&quot;</span>
-<span class="nc" id="L568">      11 -&gt; &quot;Majin Buu&quot;</span>
-<span class="nc" id="L569">      12 -&gt; &quot;Beerus&quot;</span>
-<span class="nc" id="L570">      13 -&gt; &quot;Whis&quot;</span>
-<span class="nc" id="L571">      14 -&gt; &quot;Android 17&quot;</span>
-<span class="nc" id="L572">      15 -&gt; &quot;Android 18&quot;</span>
-<span class="nc" id="L573">      16 -&gt; &quot;Yamcha&quot;</span>
-<span class="nc" id="L574">      17 -&gt; &quot;Tien&quot;</span>
-<span class="nc" id="L575">      18 -&gt; &quot;Chiaotzu&quot;</span>
-<span class="nc" id="L576">      19 -&gt; &quot;Master Roshi&quot;</span>
-<span class="nc" id="L577">      20 -&gt; &quot;Videl&quot;</span>
-<span class="nc" id="L578">      21 -&gt; &quot;Mr. Satan&quot;</span>
-<span class="nc" id="L579">      22 -&gt; &quot;Dabura&quot;</span>
-<span class="nc" id="L580">      23 -&gt; &quot;Supreme Kai&quot;</span>
-<span class="nc" id="L581">      24 -&gt; &quot;Kibito&quot;</span>
-<span class="nc" id="L582">      25 -&gt; &quot;Bardock&quot;</span>
-<span class="nc" id="L583">      else -&gt; &quot;Unknown Dragon Ball Character $id&quot;</span>
+<span class="pc bpc" id="L575" title="23 of 26 branches missed.">    return when (id) {</span>
+<span class="fc" id="L576">      1 -&gt; &quot;Goku&quot;</span>
+<span class="fc" id="L577">      2 -&gt; &quot;Vegeta&quot;</span>
+<span class="fc" id="L578">      3 -&gt; &quot;Piccolo&quot;</span>
+<span class="nc" id="L579">      4 -&gt; &quot;Bulma&quot;</span>
+<span class="nc" id="L580">      5 -&gt; &quot;Freezer&quot;</span>
+<span class="nc" id="L581">      6 -&gt; &quot;Gohan&quot;</span>
+<span class="nc" id="L582">      7 -&gt; &quot;Trunks&quot;</span>
+<span class="nc" id="L583">      8 -&gt; &quot;Goten&quot;</span>
+<span class="nc" id="L584">      9 -&gt; &quot;Krillin&quot;</span>
+<span class="nc" id="L585">      10 -&gt; &quot;Cell&quot;</span>
+<span class="nc" id="L586">      11 -&gt; &quot;Majin Buu&quot;</span>
+<span class="nc" id="L587">      12 -&gt; &quot;Beerus&quot;</span>
+<span class="nc" id="L588">      13 -&gt; &quot;Whis&quot;</span>
+<span class="nc" id="L589">      14 -&gt; &quot;Android 17&quot;</span>
+<span class="nc" id="L590">      15 -&gt; &quot;Android 18&quot;</span>
+<span class="nc" id="L591">      16 -&gt; &quot;Yamcha&quot;</span>
+<span class="nc" id="L592">      17 -&gt; &quot;Tien&quot;</span>
+<span class="nc" id="L593">      18 -&gt; &quot;Chiaotzu&quot;</span>
+<span class="nc" id="L594">      19 -&gt; &quot;Master Roshi&quot;</span>
+<span class="nc" id="L595">      20 -&gt; &quot;Videl&quot;</span>
+<span class="nc" id="L596">      21 -&gt; &quot;Mr. Satan&quot;</span>
+<span class="nc" id="L597">      22 -&gt; &quot;Dabura&quot;</span>
+<span class="nc" id="L598">      23 -&gt; &quot;Supreme Kai&quot;</span>
+<span class="nc" id="L599">      24 -&gt; &quot;Kibito&quot;</span>
+<span class="nc" id="L600">      25 -&gt; &quot;Bardock&quot;</span>
+<span class="nc" id="L601">      else -&gt; &quot;Unknown Dragon Ball Character $id&quot;</span>
     }
   }
 
   /** Retorna o nome de um personagem de Pokémon com base no ID. */
   private fun getPokemonName(id: Int): String {
-<span class="pc bpc" id="L589" title="16 of 26 branches missed.">    return when (id) {</span>
-<span class="fc" id="L590">      1 -&gt; &quot;Bulbasaur&quot;</span>
-<span class="fc" id="L591">      2 -&gt; &quot;Ivysaur&quot;</span>
-<span class="fc" id="L592">      3 -&gt; &quot;Venusaur&quot;</span>
-<span class="fc" id="L593">      4 -&gt; &quot;Charmander&quot;</span>
-<span class="fc" id="L594">      5 -&gt; &quot;Charmeleon&quot;</span>
-<span class="fc" id="L595">      6 -&gt; &quot;Charizard&quot;</span>
-<span class="fc" id="L596">      7 -&gt; &quot;Squirtle&quot;</span>
-<span class="fc" id="L597">      8 -&gt; &quot;Wartortle&quot;</span>
-<span class="fc" id="L598">      9 -&gt; &quot;Blastoise&quot;</span>
-<span class="fc" id="L599">      10 -&gt; &quot;Caterpie&quot;</span>
-<span class="nc" id="L600">      11 -&gt; &quot;Metapod&quot;</span>
-<span class="nc" id="L601">      12 -&gt; &quot;Butterfree&quot;</span>
-<span class="nc" id="L602">      13 -&gt; &quot;Weedle&quot;</span>
-<span class="nc" id="L603">      14 -&gt; &quot;Kakuna&quot;</span>
-<span class="nc" id="L604">      15 -&gt; &quot;Beedrill&quot;</span>
-<span class="nc" id="L605">      16 -&gt; &quot;Pidgey&quot;</span>
-<span class="nc" id="L606">      17 -&gt; &quot;Pidgeotto&quot;</span>
-<span class="nc" id="L607">      18 -&gt; &quot;Pidgeot&quot;</span>
-<span class="nc" id="L608">      19 -&gt; &quot;Rattata&quot;</span>
-<span class="nc" id="L609">      20 -&gt; &quot;Raticate&quot;</span>
-<span class="nc" id="L610">      21 -&gt; &quot;Spearow&quot;</span>
-<span class="nc" id="L611">      22 -&gt; &quot;Fearow&quot;</span>
-<span class="nc" id="L612">      23 -&gt; &quot;Ekans&quot;</span>
-<span class="nc" id="L613">      24 -&gt; &quot;Arbok&quot;</span>
-<span class="nc" id="L614">      25 -&gt; &quot;Pikachu&quot;</span>
-<span class="nc" id="L615">      else -&gt; &quot;Unknown Pokémon Character $id&quot;</span>
+<span class="pc bpc" id="L607" title="149 of 152 branches missed.">    return when (id) {</span>
+<span class="fc" id="L608">      1 -&gt; &quot;Bulbasaur&quot;</span>
+<span class="fc" id="L609">      2 -&gt; &quot;Ivysaur&quot;</span>
+<span class="fc" id="L610">      3 -&gt; &quot;Venusaur&quot;</span>
+<span class="nc" id="L611">      4 -&gt; &quot;Charmander&quot;</span>
+<span class="nc" id="L612">      5 -&gt; &quot;Charmeleon&quot;</span>
+<span class="nc" id="L613">      6 -&gt; &quot;Charizard&quot;</span>
+<span class="nc" id="L614">      7 -&gt; &quot;Squirtle&quot;</span>
+<span class="nc" id="L615">      8 -&gt; &quot;Wartortle&quot;</span>
+<span class="nc" id="L616">      9 -&gt; &quot;Blastoise&quot;</span>
+<span class="nc" id="L617">      10 -&gt; &quot;Caterpie&quot;</span>
+<span class="nc" id="L618">      11 -&gt; &quot;Metapod&quot;</span>
+<span class="nc" id="L619">      12 -&gt; &quot;Butterfree&quot;</span>
+<span class="nc" id="L620">      13 -&gt; &quot;Weedle&quot;</span>
+<span class="nc" id="L621">      14 -&gt; &quot;Kakuna&quot;</span>
+<span class="nc" id="L622">      15 -&gt; &quot;Beedrill&quot;</span>
+<span class="nc" id="L623">      16 -&gt; &quot;Pidgey&quot;</span>
+<span class="nc" id="L624">      17 -&gt; &quot;Pidgeotto&quot;</span>
+<span class="nc" id="L625">      18 -&gt; &quot;Pidgeot&quot;</span>
+<span class="nc" id="L626">      19 -&gt; &quot;Rattata&quot;</span>
+<span class="nc" id="L627">      20 -&gt; &quot;Raticate&quot;</span>
+<span class="nc" id="L628">      21 -&gt; &quot;Spearow&quot;</span>
+<span class="nc" id="L629">      22 -&gt; &quot;Fearow&quot;</span>
+<span class="nc" id="L630">      23 -&gt; &quot;Ekans&quot;</span>
+<span class="nc" id="L631">      24 -&gt; &quot;Arbok&quot;</span>
+<span class="nc" id="L632">      25 -&gt; &quot;Pikachu&quot;</span>
+<span class="nc" id="L633">      26 -&gt; &quot;Raichu&quot;</span>
+<span class="nc" id="L634">      27 -&gt; &quot;Sandshrew&quot;</span>
+<span class="nc" id="L635">      28 -&gt; &quot;Sandslash&quot;</span>
+<span class="nc" id="L636">      29 -&gt; &quot;Nidoran♀&quot;</span>
+<span class="nc" id="L637">      30 -&gt; &quot;Nidorina&quot;</span>
+<span class="nc" id="L638">      31 -&gt; &quot;Nidoqueen&quot;</span>
+<span class="nc" id="L639">      32 -&gt; &quot;Nidoran♂&quot;</span>
+<span class="nc" id="L640">      33 -&gt; &quot;Nidorino&quot;</span>
+<span class="nc" id="L641">      34 -&gt; &quot;Nidoking&quot;</span>
+<span class="nc" id="L642">      35 -&gt; &quot;Clefairy&quot;</span>
+<span class="nc" id="L643">      36 -&gt; &quot;Clefable&quot;</span>
+<span class="nc" id="L644">      37 -&gt; &quot;Vulpix&quot;</span>
+<span class="nc" id="L645">      38 -&gt; &quot;Ninetales&quot;</span>
+<span class="nc" id="L646">      39 -&gt; &quot;Jigglypuff&quot;</span>
+<span class="nc" id="L647">      40 -&gt; &quot;Wigglytuff&quot;</span>
+<span class="nc" id="L648">      41 -&gt; &quot;Zubat&quot;</span>
+<span class="nc" id="L649">      42 -&gt; &quot;Golbat&quot;</span>
+<span class="nc" id="L650">      43 -&gt; &quot;Oddish&quot;</span>
+<span class="nc" id="L651">      44 -&gt; &quot;Gloom&quot;</span>
+<span class="nc" id="L652">      45 -&gt; &quot;Vileplume&quot;</span>
+<span class="nc" id="L653">      46 -&gt; &quot;Paras&quot;</span>
+<span class="nc" id="L654">      47 -&gt; &quot;Parasect&quot;</span>
+<span class="nc" id="L655">      48 -&gt; &quot;Venonat&quot;</span>
+<span class="nc" id="L656">      49 -&gt; &quot;Venomoth&quot;</span>
+<span class="nc" id="L657">      50 -&gt; &quot;Diglett&quot;</span>
+<span class="nc" id="L658">      51 -&gt; &quot;Dugtrio&quot;</span>
+<span class="nc" id="L659">      52 -&gt; &quot;Meowth&quot;</span>
+<span class="nc" id="L660">      53 -&gt; &quot;Persian&quot;</span>
+<span class="nc" id="L661">      54 -&gt; &quot;Psyduck&quot;</span>
+<span class="nc" id="L662">      55 -&gt; &quot;Golduck&quot;</span>
+<span class="nc" id="L663">      56 -&gt; &quot;Mankey&quot;</span>
+<span class="nc" id="L664">      57 -&gt; &quot;Primeape&quot;</span>
+<span class="nc" id="L665">      58 -&gt; &quot;Growlithe&quot;</span>
+<span class="nc" id="L666">      59 -&gt; &quot;Arcanine&quot;</span>
+<span class="nc" id="L667">      60 -&gt; &quot;Poliwag&quot;</span>
+<span class="nc" id="L668">      61 -&gt; &quot;Poliwhirl&quot;</span>
+<span class="nc" id="L669">      62 -&gt; &quot;Poliwrath&quot;</span>
+<span class="nc" id="L670">      63 -&gt; &quot;Abra&quot;</span>
+<span class="nc" id="L671">      64 -&gt; &quot;Kadabra&quot;</span>
+<span class="nc" id="L672">      65 -&gt; &quot;Alakazam&quot;</span>
+<span class="nc" id="L673">      66 -&gt; &quot;Machop&quot;</span>
+<span class="nc" id="L674">      67 -&gt; &quot;Machoke&quot;</span>
+<span class="nc" id="L675">      68 -&gt; &quot;Machamp&quot;</span>
+<span class="nc" id="L676">      69 -&gt; &quot;Bellsprout&quot;</span>
+<span class="nc" id="L677">      70 -&gt; &quot;Weepinbell&quot;</span>
+<span class="nc" id="L678">      71 -&gt; &quot;Victreebel&quot;</span>
+<span class="nc" id="L679">      72 -&gt; &quot;Tentacool&quot;</span>
+<span class="nc" id="L680">      73 -&gt; &quot;Tentacruel&quot;</span>
+<span class="nc" id="L681">      74 -&gt; &quot;Geodude&quot;</span>
+<span class="nc" id="L682">      75 -&gt; &quot;Graveler&quot;</span>
+<span class="nc" id="L683">      76 -&gt; &quot;Golem&quot;</span>
+<span class="nc" id="L684">      77 -&gt; &quot;Ponyta&quot;</span>
+<span class="nc" id="L685">      78 -&gt; &quot;Rapidash&quot;</span>
+<span class="nc" id="L686">      79 -&gt; &quot;Slowpoke&quot;</span>
+<span class="nc" id="L687">      80 -&gt; &quot;Slowbro&quot;</span>
+<span class="nc" id="L688">      81 -&gt; &quot;Magnemite&quot;</span>
+<span class="nc" id="L689">      82 -&gt; &quot;Magneton&quot;</span>
+<span class="nc" id="L690">      83 -&gt; &quot;Farfetch'd&quot;</span>
+<span class="nc" id="L691">      84 -&gt; &quot;Doduo&quot;</span>
+<span class="nc" id="L692">      85 -&gt; &quot;Dodrio&quot;</span>
+<span class="nc" id="L693">      86 -&gt; &quot;Seel&quot;</span>
+<span class="nc" id="L694">      87 -&gt; &quot;Dewgong&quot;</span>
+<span class="nc" id="L695">      88 -&gt; &quot;Grimer&quot;</span>
+<span class="nc" id="L696">      89 -&gt; &quot;Muk&quot;</span>
+<span class="nc" id="L697">      90 -&gt; &quot;Shellder&quot;</span>
+<span class="nc" id="L698">      91 -&gt; &quot;Cloyster&quot;</span>
+<span class="nc" id="L699">      92 -&gt; &quot;Gastly&quot;</span>
+<span class="nc" id="L700">      93 -&gt; &quot;Haunter&quot;</span>
+<span class="nc" id="L701">      94 -&gt; &quot;Gengar&quot;</span>
+<span class="nc" id="L702">      95 -&gt; &quot;Onix&quot;</span>
+<span class="nc" id="L703">      96 -&gt; &quot;Drowzee&quot;</span>
+<span class="nc" id="L704">      97 -&gt; &quot;Hypno&quot;</span>
+<span class="nc" id="L705">      98 -&gt; &quot;Krabby&quot;</span>
+<span class="nc" id="L706">      99 -&gt; &quot;Kingler&quot;</span>
+<span class="nc" id="L707">      100 -&gt; &quot;Voltorb&quot;</span>
+<span class="nc" id="L708">      101 -&gt; &quot;Electrode&quot;</span>
+<span class="nc" id="L709">      102 -&gt; &quot;Exeggcute&quot;</span>
+<span class="nc" id="L710">      103 -&gt; &quot;Exeggutor&quot;</span>
+<span class="nc" id="L711">      104 -&gt; &quot;Cubone&quot;</span>
+<span class="nc" id="L712">      105 -&gt; &quot;Marowak&quot;</span>
+<span class="nc" id="L713">      106 -&gt; &quot;Hitmonlee&quot;</span>
+<span class="nc" id="L714">      107 -&gt; &quot;Hitmonchan&quot;</span>
+<span class="nc" id="L715">      108 -&gt; &quot;Lickitung&quot;</span>
+<span class="nc" id="L716">      109 -&gt; &quot;Koffing&quot;</span>
+<span class="nc" id="L717">      110 -&gt; &quot;Weezing&quot;</span>
+<span class="nc" id="L718">      111 -&gt; &quot;Rhyhorn&quot;</span>
+<span class="nc" id="L719">      112 -&gt; &quot;Rhydon&quot;</span>
+<span class="nc" id="L720">      113 -&gt; &quot;Chansey&quot;</span>
+<span class="nc" id="L721">      114 -&gt; &quot;Tangela&quot;</span>
+<span class="nc" id="L722">      115 -&gt; &quot;Kangaskhan&quot;</span>
+<span class="nc" id="L723">      116 -&gt; &quot;Horsea&quot;</span>
+<span class="nc" id="L724">      117 -&gt; &quot;Seadra&quot;</span>
+<span class="nc" id="L725">      118 -&gt; &quot;Goldeen&quot;</span>
+<span class="nc" id="L726">      119 -&gt; &quot;Seaking&quot;</span>
+<span class="nc" id="L727">      120 -&gt; &quot;Staryu&quot;</span>
+<span class="nc" id="L728">      121 -&gt; &quot;Starmie&quot;</span>
+<span class="nc" id="L729">      122 -&gt; &quot;Mr. Mime&quot;</span>
+<span class="nc" id="L730">      123 -&gt; &quot;Scyther&quot;</span>
+<span class="nc" id="L731">      124 -&gt; &quot;Jynx&quot;</span>
+<span class="nc" id="L732">      125 -&gt; &quot;Electabuzz&quot;</span>
+<span class="nc" id="L733">      126 -&gt; &quot;Magmar&quot;</span>
+<span class="nc" id="L734">      127 -&gt; &quot;Pinsir&quot;</span>
+<span class="nc" id="L735">      128 -&gt; &quot;Tauros&quot;</span>
+<span class="nc" id="L736">      129 -&gt; &quot;Magikarp&quot;</span>
+<span class="nc" id="L737">      130 -&gt; &quot;Gyarados&quot;</span>
+<span class="nc" id="L738">      131 -&gt; &quot;Lapras&quot;</span>
+<span class="nc" id="L739">      132 -&gt; &quot;Ditto&quot;</span>
+<span class="nc" id="L740">      133 -&gt; &quot;Eevee&quot;</span>
+<span class="nc" id="L741">      134 -&gt; &quot;Vaporeon&quot;</span>
+<span class="nc" id="L742">      135 -&gt; &quot;Jolteon&quot;</span>
+<span class="nc" id="L743">      136 -&gt; &quot;Flareon&quot;</span>
+<span class="nc" id="L744">      137 -&gt; &quot;Porygon&quot;</span>
+<span class="nc" id="L745">      138 -&gt; &quot;Omanyte&quot;</span>
+<span class="nc" id="L746">      139 -&gt; &quot;Omastar&quot;</span>
+<span class="nc" id="L747">      140 -&gt; &quot;Kabuto&quot;</span>
+<span class="nc" id="L748">      141 -&gt; &quot;Kabutops&quot;</span>
+<span class="nc" id="L749">      142 -&gt; &quot;Aerodactyl&quot;</span>
+<span class="nc" id="L750">      143 -&gt; &quot;Snorlax&quot;</span>
+<span class="nc" id="L751">      144 -&gt; &quot;Articuno&quot;</span>
+<span class="nc" id="L752">      145 -&gt; &quot;Zapdos&quot;</span>
+<span class="nc" id="L753">      146 -&gt; &quot;Moltres&quot;</span>
+<span class="nc" id="L754">      147 -&gt; &quot;Dratini&quot;</span>
+<span class="nc" id="L755">      148 -&gt; &quot;Dragonair&quot;</span>
+<span class="nc" id="L756">      149 -&gt; &quot;Dragonite&quot;</span>
+<span class="nc" id="L757">      150 -&gt; &quot;Mewtwo&quot;</span>
+<span class="nc" id="L758">      151 -&gt; &quot;Mew&quot;</span>
+<span class="nc" id="L759">      else -&gt; &quot;Pokémon #$id&quot;</span>
     }
   }
 }
 
 /** Classe para representar uma página de resultados */
-<span class="pc" id="L621">data class Page&lt;T&gt;(val content: List&lt;T&gt;, val page: Int, val size: Int, val totalElements: Long) {</span>
-<span class="fc" id="L622">  val totalPages: Int = Math.ceil(totalElements.toDouble() / size).toInt().coerceAtLeast(1)</span>
-<span class="fc bfc" id="L623" title="All 2 branches covered.">  val isFirst: Boolean = page &lt;= 0</span>
-<span class="fc bfc" id="L624" title="All 2 branches covered.">  val isLast: Boolean = page &gt;= totalPages - 1</span>
-<span class="fc bfc" id="L625" title="All 2 branches covered.">  val hasNext: Boolean = !isLast</span>
-<span class="fc bfc" id="L626" title="All 2 branches covered.">  val hasPrevious: Boolean = !isFirst</span>
+<span class="pc" id="L765">data class Page&lt;T&gt;(val content: List&lt;T&gt;, val page: Int, val size: Int, val totalElements: Long) {</span>
+<span class="fc" id="L766">  val totalPages: Int = Math.ceil(totalElements.toDouble() / size).toInt().coerceAtLeast(1)</span>
+<span class="fc bfc" id="L767" title="All 2 branches covered.">  val isFirst: Boolean = page &lt;= 0</span>
+<span class="fc bfc" id="L768" title="All 2 branches covered.">  val isLast: Boolean = page &gt;= totalPages - 1</span>
+<span class="fc bfc" id="L769" title="All 2 branches covered.">  val hasNext: Boolean = !isLast</span>
+<span class="fc bfc" id="L770" title="All 2 branches covered.">  val hasPrevious: Boolean = !isFirst</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

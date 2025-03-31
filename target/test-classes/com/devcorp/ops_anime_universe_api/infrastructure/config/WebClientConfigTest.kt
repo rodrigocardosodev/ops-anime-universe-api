@@ -18,7 +18,6 @@ import org.springframework.web.reactive.function.client.ExchangeFilterFunction
 import org.springframework.web.reactive.function.client.ExchangeFunction
 import org.springframework.web.reactive.function.client.WebClient
 import reactor.core.publisher.Mono
-import reactor.netty.http.client.HttpClient
 import reactor.test.StepVerifier
 
 class WebClientConfigTest {
@@ -120,88 +119,15 @@ class WebClientConfigTest {
   }
 
   @Test
-  fun `deve ter configurações de timeout e compressão`() {
-    // Arrange
-    val webClientBuilder = webClientConfig.webClientBuilder()
-    val webClient = webClientBuilder.build()
-
-    // Act & Assert
-    // Observação: não é possível verificar diretamente as configurações internas
-    // do WebClient, mas podemos verificar se ele foi criado corretamente
-    assertNotNull(webClient)
-  }
-
-  @Test
-  fun `WebClient Builder deve poder criar instâncias com diferentes URLs base`() {
-    // Act
-    val webClientBuilder = webClientConfig.webClientBuilder()
-
-    // Criando diferentes instâncias de WebClient com URLs base diferentes
-    val webClient1 = webClientBuilder.baseUrl("http://example.com/api").build()
-    val webClient2 = webClientBuilder.baseUrl("http://localhost:8080").build()
-
-    // Assert
-    assertNotNull(webClient1)
-    assertNotNull(webClient2)
-  }
-
-  @Test
-  fun `WebClient Builder deve poder ser usado em ambientes diferentes`() {
-    // Act
-    val webClientBuilder = webClientConfig.webClientBuilder()
-
-    // Criando um WebClient com configurações específicas
-    val webClient =
-            webClientBuilder
-                    .defaultHeader("X-Api-Key", "test-key")
-                    .defaultHeader("Content-Type", "application/json")
-                    .build()
-
-    // Assert
-    assertNotNull(webClient)
-  }
-
-  @Test
-  fun `ExchangeStrategies deve ser configurado com o tamanho correto`() {
-    // Arrange & Act
-    val webClientBuilder = webClientConfig.webClientBuilder()
-    val webClient = webClientBuilder.build()
-
-    // Assert
-    assertNotNull(webClient)
-
-    // Testamos indiretamente que a configuração está correta
-    // verificando se o builder pode criar um cliente funcional
-    assertTrue(webClient is WebClient)
-
-    // Verificamos o valor configurado para maxInMemorySize
-    val maxInMemorySize = ReflectionTestUtils.getField(webClientConfig, "maxInMemorySize") as Int?
-    assertNotNull(maxInMemorySize)
-    assertEquals(16 * 1024 * 1024, maxInMemorySize) // 16MB
-  }
-
-  @Test
   fun `HttpClient deve ser configurado com timeout e compressão`() {
-    // Reflexão para acessar o httpClient diretamente
-    try {
-      // Tentativa de acesso ao campo httpClient declarado como propriedade top-level
-      val httpClientField = webClientConfig.javaClass.getDeclaredField("httpClient")
-      httpClientField.isAccessible = true
-      val httpClient = httpClientField.get(webClientConfig) as? HttpClient
+    // Verificamos indiretamente pelo builder
+    val builder = webClientConfig.webClientBuilder()
+    assertNotNull(builder)
 
-      if (httpClient != null) {
-        // Se tivermos acesso ao HttpClient, podemos fazer mais asserções
-        assertNotNull(httpClient)
-      } else {
-        // Se não conseguirmos acessar o campo, testamos indiretamente pelo builder
-        val builder = webClientConfig.webClientBuilder()
-        assertNotNull(builder)
-      }
-    } catch (e: NoSuchFieldException) {
-      // Se o campo não existir ou não for acessível, validamos pelo builder
-      val builder = webClientConfig.webClientBuilder()
-      assertNotNull(builder)
-    }
+    // Verificar as propriedades de configuração
+    val connectTimeoutMs = ReflectionTestUtils.getField(webClientConfig, "connectTimeoutMs")
+    assertNotNull(connectTimeoutMs)
+    assertEquals(10000, connectTimeoutMs)
   }
 
   @Test
@@ -217,6 +143,10 @@ class WebClientConfigTest {
     assertNotNull(maxConnections)
     assertNotNull(maxIdleTimeSeconds)
     assertNotNull(pendingAcquireTimeoutSeconds)
+
+    assertEquals(500, maxConnections)
+    assertEquals(60L, maxIdleTimeSeconds)
+    assertEquals(30L, pendingAcquireTimeoutSeconds)
 
     // Verify the WebClientBuilder can be created with these settings
     val webClientBuilder = webClientConfig.webClientBuilder()
@@ -263,5 +193,48 @@ class WebClientConfigTest {
 
     // Verificar que exchange foi chamado com o clientRequest original
     verify(exchangeFunction).exchange(clientRequest)
+  }
+
+  /** Testes para a configuração de HTTP do WebClient */
+  @Test
+  fun `webClientBuilder deve configurar timeout e conexões adequadamente`() {
+    // Arrange & Act
+    val builder = webClientConfig.webClientBuilder()
+
+    // Assert
+    assertNotNull(builder)
+
+    // Verificamos as configurações através de reflexão
+    val maxInMemorySize = ReflectionTestUtils.getField(webClientConfig, "maxInMemorySize") as Int?
+    val connectTimeoutMs = ReflectionTestUtils.getField(webClientConfig, "connectTimeoutMs") as Int?
+    val readTimeoutSeconds =
+            ReflectionTestUtils.getField(webClientConfig, "readTimeoutSeconds") as Long?
+    val maxConnections = ReflectionTestUtils.getField(webClientConfig, "maxConnections") as Int?
+
+    assertNotNull(maxInMemorySize)
+    assertNotNull(connectTimeoutMs)
+    assertNotNull(readTimeoutSeconds)
+    assertNotNull(maxConnections)
+
+    assertEquals(16 * 1024 * 1024, maxInMemorySize) // 16MB
+    assertEquals(10000, connectTimeoutMs) // 10 segundos
+    assertEquals(30L, readTimeoutSeconds) // 30 segundos
+    assertEquals(500, maxConnections) // 500 conexões
+  }
+
+  /** Testes para o uso efetivo do HttpClient no WebClient */
+  @Test
+  fun `WebClient deve usar a configuração do HttpClient corretamente`() {
+    // Arrange
+    val builder = webClientConfig.webClientBuilder()
+    val webClient = builder.baseUrl("https://example.com").build()
+
+    // Act & Assert
+    assertNotNull(webClient)
+
+    // Verificamos que o WebClient foi criado e possui um cliente HTTP
+    // Não podemos testar diretamente o cliente HTTP usado, mas podemos verificar
+    // que o WebClient foi criado corretamente
+    assertTrue(webClient is WebClient)
   }
 }

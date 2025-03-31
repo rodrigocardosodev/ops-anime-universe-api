@@ -95,6 +95,56 @@ class CustomErrorAttributesTest {
                 assertEquals("Erro interno do servidor", result["message"])
                 assertNull(result["timestamp"])
         }
+
+        /**
+         * Teste que verifica a lógica para customização de erro 404 com acesso direto à
+         * implementação
+         */
+        @Test
+        fun `método processErrorAttributes deve customizar mensagem para erro 404`() {
+                // Arrange
+                val customErrorAttributes = CustomErrorAttributes()
+                val path = "/api/nao-existente"
+
+                // Criamos um mapa simulando o retorno da superclasse para erro 404
+                val errorMap =
+                        mutableMapOf<String, Any>(
+                                "status" to 404,
+                                "error" to "Not Found",
+                                "message" to "Página não encontrada",
+                                "path" to path
+                        )
+
+                // Act
+                val result = customErrorAttributes.processErrorAttributes(errorMap, path)
+
+                // Assert
+                assertEquals("Recurso não encontrado: $path", result["message"])
+                assertNotNull(result["timestamp"])
+        }
+
+        /** Teste que verifica o caso onde status é null e usa o valor padrão 500 */
+        @Test
+        fun `método processErrorAttributes deve usar 500 como status padrão quando status for null`() {
+                // Arrange
+                val customErrorAttributes = CustomErrorAttributes()
+                val path = "/api/algum-caminho"
+
+                // Criamos um mapa sem o campo status
+                val errorMap =
+                        mutableMapOf<String, Any>(
+                                "error" to "Internal Server Error",
+                                "message" to "Erro interno",
+                                "path" to path
+                        )
+
+                // Act
+                val result = customErrorAttributes.processErrorAttributes(errorMap, path)
+
+                // Assert - Como o status não é 404, não deve modificar a mensagem
+                assertEquals("Erro interno", result["message"])
+                assertFalse(result.containsKey("timestamp"))
+        }
 }
 
 // Extensão para CustomErrorAttributes que facilita o teste isolando a lógica principal

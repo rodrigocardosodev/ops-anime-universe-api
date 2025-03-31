@@ -291,43 +291,31 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
           page: Int,
           size: Int
   ): List<Character> {
-    // Para página 0: IDs 1-10 (se size=10)
-    // Para página 1: IDs 11-20 (se size=10)
-    // Para página 2: IDs 21-30 (se size=10)
+    // Limita o tamanho máximo ao número de personagens disponíveis
+    val validSize = size.coerceAtMost(characters.size)
 
-    // Verificamos o maior ID disponível na lista
-    val maxId = characters.mapNotNull { it.id.toIntOrNull() }.maxOrNull() ?: 25
+    // Verifica se a lista está vazia
+    if (characters.isEmpty()) {
+      return emptyList()
+    }
 
-    // Calculamos o ID inicial na paginação desejada
-    val startId = (page * size) + 1
+    // Calcula o índice inicial e final na lista, verificando limites
+    val startIndex = (page * validSize).coerceAtLeast(0)
 
-    // Calculamos o ID final na paginação desejada
-    val endId = startId + size - 1
+    // Se estamos além do número total de personagens disponíveis, retornamos uma lista vazia
+    if (startIndex >= characters.size) {
+      return emptyList()
+    }
 
-    // Agora implementamos a lógica circular para retornar IDs em ordem sequencial
-    // para páginas que ultrapassem o número total de IDs disponíveis
-    val idsToReturn =
-            (startId..endId).map { rawId ->
-              // Ajustamos o ID para nossa faixa disponível (1..maxId)
-              // usando módulo para criar um ciclo quando necessário
-              if (rawId <= maxId) {
-                // ID dentro da faixa disponível
-                rawId
-              } else {
-                // ID excede o máximo disponível, calculamos um ID equivalente no ciclo
-                // Subtraímos 1, aplicamos módulo para obter 0..(maxId-1), e somamos 1 para retornar
-                // ao range 1..maxId
-                ((rawId - 1) % maxId) + 1
-              }
-            }
+    val endIndex = (startIndex + validSize - 1).coerceAtMost(characters.size - 1)
 
-    // Criamos o resultado mapeando os IDs para os personagens correspondentes
-    val result =
-            idsToReturn.mapNotNull { calculatedId ->
-              characters.find { it.id.toIntOrNull() == calculatedId }
-            }
+    // Verificação adicional para garantir que o startIndex não exceda o endIndex
+    if (startIndex > endIndex) {
+      return emptyList()
+    }
 
-    return result
+    // Retorna os personagens do intervalo calculado
+    return characters.subList(startIndex, endIndex + 1)
   }
 
   /**
@@ -515,38 +503,68 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
     // Limita o tamanho máximo a 25
     val validSize = size.coerceAtMost(25)
 
-    // Calcula o ID inicial e final dinamicamente
-    val startId = (page * validSize) + 1
-    val endId = startId + validSize - 1
+    // Calcula o índice inicial para a página de personagens
+    val startIndex = page * validSize
+
+    // Obtém o total de personagens disponíveis para este universo
+    val totalElementsForUniverse =
+            when (universe) {
+              Universe.DRAGON_BALL -> DRAGON_BALL_TOTAL_ELEMENTS.toInt()
+              Universe.POKEMON -> POKEMON_TOTAL_ELEMENTS.toInt()
+              else -> 25
+            }
+
+    // Verifica se estamos fora dos limites - se página inicial excede total, retorna vazio
+    if (startIndex >= totalElementsForUniverse) {
+      return emptyList()
+    }
 
     // Lista para guardar os personagens
     val result = mutableListOf<Character>()
 
-    // Vamos gerar uma lista de personagens com IDs sequenciais
-    for (id in startId..endId) {
-      // O ID efetivo entre 1 e 25 usando lógica circular
-      val effectiveId = ((id - 1) % 25) + 1
+    // Calcula quantos personagens realmente precisamos gerar
+    val longStartIndex = startIndex.toLong()
+    val longValidSize = validSize.toLong()
 
-      // Usamos o ID da página para o personagem, mas o nome vem do ID efetivo (1-25)
-      when (universe) {
-        Universe.DRAGON_BALL -> {
-          val name = getDragonBallName(effectiveId)
-          result.add(Character(id = id.toString(), name = name, universe = universe))
-        }
-        Universe.POKEMON -> {
-          val name = getPokemonName(effectiveId)
-          result.add(Character(id = id.toString(), name = name, universe = universe))
-        }
-        else -> {
-          result.add(
-                  Character(
-                          id = id.toString(),
-                          name = "Unknown Character $effectiveId",
-                          universe = universe
-                  )
-          )
-        }
-      }
+    // Verifica novamente após conversão para Long (garantia adicional)
+    if (longStartIndex >= totalElementsForUniverse) {
+      return emptyList()
+    }
+
+    // Calcula o índice final, garantindo que não ultrapasse o total disponível
+    val endIndex = minOf(longStartIndex + longValidSize, totalElementsForUniverse.toLong())
+
+    // Verifica se temos algum item para retornar
+    if (longStartIndex >= endIndex) {
+      return emptyList()
+    }
+
+    // Gera personagens com IDs sequenciais reais (sem reciclagem circular)
+    for (i in longStartIndex until endIndex) {
+      // Para cada personagem, calculamos seu ID real começando em 1
+      val id = i + 1
+
+      val name =
+              when (universe) {
+                Universe.DRAGON_BALL -> {
+                  // Para Dragon Ball, continuamos usando a lógica de nomes circular com 25 nomes
+                  val effectiveNameId = ((id - 1) % 25) + 1
+                  getDragonBallName(effectiveNameId.toInt())
+                }
+                Universe.POKEMON -> {
+                  // Para Pokémon, vamos calcular o número efetivo da Pokédex
+                  // Isso permite que tenhamos correspondência com a Pokédex real
+                  // independentemente da página
+                  // Se o id real do Pokémon (1-1302) for menor ou igual a 151,
+                  // usamos o nome específico da Pokédex
+                  val pokedexNumber = ((id - 1) % 151) + 1
+                  getPokemonName(pokedexNumber.toInt())
+                }
+                else -> "Unknown Character $id"
+              }
+
+      // Criamos o personagem com o ID real e o nome
+      result.add(Character(id = id.toString(), name = name, universe = universe))
     }
 
     return result
@@ -612,7 +630,133 @@ class CharacterUseCase(private val characterServices: List<CharacterService>) {
       23 -> "Ekans"
       24 -> "Arbok"
       25 -> "Pikachu"
-      else -> "Unknown Pokémon Character $id"
+      26 -> "Raichu"
+      27 -> "Sandshrew"
+      28 -> "Sandslash"
+      29 -> "Nidoran♀"
+      30 -> "Nidorina"
+      31 -> "Nidoqueen"
+      32 -> "Nidoran♂"
+      33 -> "Nidorino"
+      34 -> "Nidoking"
+      35 -> "Clefairy"
+      36 -> "Clefable"
+      37 -> "Vulpix"
+      38 -> "Ninetales"
+      39 -> "Jigglypuff"
+      40 -> "Wigglytuff"
+      41 -> "Zubat"
+      42 -> "Golbat"
+      43 -> "Oddish"
+      44 -> "Gloom"
+      45 -> "Vileplume"
+      46 -> "Paras"
+      47 -> "Parasect"
+      48 -> "Venonat"
+      49 -> "Venomoth"
+      50 -> "Diglett"
+      51 -> "Dugtrio"
+      52 -> "Meowth"
+      53 -> "Persian"
+      54 -> "Psyduck"
+      55 -> "Golduck"
+      56 -> "Mankey"
+      57 -> "Primeape"
+      58 -> "Growlithe"
+      59 -> "Arcanine"
+      60 -> "Poliwag"
+      61 -> "Poliwhirl"
+      62 -> "Poliwrath"
+      63 -> "Abra"
+      64 -> "Kadabra"
+      65 -> "Alakazam"
+      66 -> "Machop"
+      67 -> "Machoke"
+      68 -> "Machamp"
+      69 -> "Bellsprout"
+      70 -> "Weepinbell"
+      71 -> "Victreebel"
+      72 -> "Tentacool"
+      73 -> "Tentacruel"
+      74 -> "Geodude"
+      75 -> "Graveler"
+      76 -> "Golem"
+      77 -> "Ponyta"
+      78 -> "Rapidash"
+      79 -> "Slowpoke"
+      80 -> "Slowbro"
+      81 -> "Magnemite"
+      82 -> "Magneton"
+      83 -> "Farfetch'd"
+      84 -> "Doduo"
+      85 -> "Dodrio"
+      86 -> "Seel"
+      87 -> "Dewgong"
+      88 -> "Grimer"
+      89 -> "Muk"
+      90 -> "Shellder"
+      91 -> "Cloyster"
+      92 -> "Gastly"
+      93 -> "Haunter"
+      94 -> "Gengar"
+      95 -> "Onix"
+      96 -> "Drowzee"
+      97 -> "Hypno"
+      98 -> "Krabby"
+      99 -> "Kingler"
+      100 -> "Voltorb"
+      101 -> "Electrode"
+      102 -> "Exeggcute"
+      103 -> "Exeggutor"
+      104 -> "Cubone"
+      105 -> "Marowak"
+      106 -> "Hitmonlee"
+      107 -> "Hitmonchan"
+      108 -> "Lickitung"
+      109 -> "Koffing"
+      110 -> "Weezing"
+      111 -> "Rhyhorn"
+      112 -> "Rhydon"
+      113 -> "Chansey"
+      114 -> "Tangela"
+      115 -> "Kangaskhan"
+      116 -> "Horsea"
+      117 -> "Seadra"
+      118 -> "Goldeen"
+      119 -> "Seaking"
+      120 -> "Staryu"
+      121 -> "Starmie"
+      122 -> "Mr. Mime"
+      123 -> "Scyther"
+      124 -> "Jynx"
+      125 -> "Electabuzz"
+      126 -> "Magmar"
+      127 -> "Pinsir"
+      128 -> "Tauros"
+      129 -> "Magikarp"
+      130 -> "Gyarados"
+      131 -> "Lapras"
+      132 -> "Ditto"
+      133 -> "Eevee"
+      134 -> "Vaporeon"
+      135 -> "Jolteon"
+      136 -> "Flareon"
+      137 -> "Porygon"
+      138 -> "Omanyte"
+      139 -> "Omastar"
+      140 -> "Kabuto"
+      141 -> "Kabutops"
+      142 -> "Aerodactyl"
+      143 -> "Snorlax"
+      144 -> "Articuno"
+      145 -> "Zapdos"
+      146 -> "Moltres"
+      147 -> "Dratini"
+      148 -> "Dragonair"
+      149 -> "Dragonite"
+      150 -> "Mewtwo"
+      151 -> "Mew"
+      else -> "Pokémon #$id"
     }
   }
 }

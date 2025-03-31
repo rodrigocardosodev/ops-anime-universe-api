@@ -18,7 +18,7 @@ ops-anime-universe-api,com.devcorp.ops_anime_universe_api.infrastructure.config,
 ops-anime-universe-api,com.devcorp.ops_anime_universe_api.infrastructure.config,WebClientConfig.webClientBuilder.httpClient.new Function1() {...},23,0,0,0,11,0,1,0,1,0
 ops-anime-universe-api,com.devcorp.ops_anime_universe_api.infrastructure.config,GlobalExceptionHandler,0,203,1,11,0,45,1,10,0,5
 ops-anime-universe-api,com.devcorp.ops_anime_universe_api.infrastructure.config,CacheConfig,0,47,0,0,0,16,0,2,0,2
-ops-anime-universe-api,com.devcorp.ops_anime_universe_api.infrastructure.config,CustomErrorAttributes,47,3,4,0,7,1,3,1,1,1
+ops-anime-universe-api,com.devcorp.ops_anime_universe_api.infrastructure.config,CustomErrorAttributes,41,9,4,0,7,1,2,2,0,2
 ops-anime-universe-api,com.devcorp.ops_anime_universe_api.infrastructure.config,ErrorWebFluxConfiguration,0,16,0,0,0,4,0,3,0,3
 ops-anime-universe-api,com.devcorp.ops_anime_universe_api.infrastructure.config,GlobalExceptionHandler.ErrorResponse,9,49,0,0,0,7,3,4,3,4
 ops-anime-universe-api,com.devcorp.ops_anime_universe_api.infrastructure.adapter.primary.rest,CharacterController,31,169,7,9,9,32,7,5,0,4
@@ -31,7 +31,7 @@ ops-anime-universe-api,com.devcorp.ops_anime_universe_api.domain.model,GroupedPa
 ops-anime-universe-api,com.devcorp.ops_anime_universe_api.domain.model,PageResponse.Companion,0,44,0,6,0,7,0,4,0,1
 ops-anime-universe-api,com.devcorp.ops_anime_universe_api.domain.model,Universe,0,25,0,0,0,3,0,1,0,1
 ops-anime-universe-api,com.devcorp.ops_anime_universe_api.domain.model,HealthStatus,0,44,0,0,0,5,0,5,0,5
-ops-anime-universe-api,com.devcorp.ops_anime_universe_api.domain.usecase,CharacterUseCase,228,1257,53,62,68,213,53,42,0,13
+ops-anime-universe-api,com.devcorp.ops_anime_universe_api.domain.usecase,CharacterUseCase,486,1228,188,54,207,209,188,34,0,13
 ops-anime-universe-api,com.devcorp.ops_anime_universe_api.domain.usecase,CharacterUseCase.getCharacters.suspendImpl..inlined.sortedBy.new Comparator() {...},0,15,0,0,0,1,0,1,0,1
 ops-anime-universe-api,com.devcorp.ops_anime_universe_api.domain.usecase,Page,3,91,0,8,0,6,1,13,1,9
 ops-anime-universe-api,com.devcorp.ops_anime_universe_api.domain.usecase,CharacterUseCase.checkServicesAvailability.new Function2() {...},22,45,0,0,3,6,0,1,0,1
